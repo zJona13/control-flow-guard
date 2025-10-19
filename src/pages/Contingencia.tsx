@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -6,41 +7,29 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { AlertCircle, Calendar, Download, Plus, User } from "lucide-react";
+import { AlertCircle, Calendar, Download, Plus, User, Loader2 } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
+import { z } from "zod";
 
 interface Appointment {
   id: string;
+  appointment_code: string;
   dni: string;
-  fullName: string;
+  full_name: string;
   service: string;
   doctor: string;
-  time: string;
-  date: string;
+  appointment_time: string;
+  appointment_date: string;
+  created_at: string;
 }
 
-const Contingencia = () => {
-  const [appointments, setAppointments] = useState<Appointment[]>([
-    {
-      id: "CONT-001",
-      dni: "12345678",
-      fullName: "Ana María López García",
-      service: "Medicina General",
-      doctor: "Dr. Carlos Ramírez",
-      time: "09:00",
-      date: "2025-10-19",
-    },
-    {
-      id: "CONT-002",
-      dni: "87654321",
-      fullName: "José Antonio Fernández",
-      service: "Cardiología",
-      doctor: "Dra. María Elena Soto",
-      time: "10:30",
-      date: "2025-10-19",
-    },
-  ]);
+const dniSchema = z.string().regex(/^\d{8}$/, "DNI debe tener 8 dígitos");
+const nameSchema = z.string().min(3, "Nombre muy corto").max(100, "Nombre muy largo");
 
+const Contingencia = () => {
+  const [appointments, setAppointments] = useState<Appointment[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [creating, setCreating] = useState(false);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [newAppointment, setNewAppointment] = useState({
     dni: "",
@@ -70,49 +59,134 @@ const Contingencia = () => {
     "Dra. Patricia Díaz",
   ];
 
-  const handleCreateAppointment = () => {
-    if (!newAppointment.dni || !newAppointment.fullName || !newAppointment.service || !newAppointment.doctor || !newAppointment.time) {
+  useEffect(() => {
+    fetchAppointments();
+
+    // Suscribirse a cambios en tiempo real
+    const channel = supabase
+      .channel("appointments-changes")
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "contingency_appointments",
+        },
+        () => {
+          fetchAppointments();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, []);
+
+  const fetchAppointments = async () => {
+    const { data, error } = await supabase
+      .from("contingency_appointments")
+      .select("*")
+      .order("created_at", { ascending: false });
+
+    if (error) {
       toast({
         title: "Error",
-        description: "Por favor complete todos los campos requeridos",
+        description: "No se pudieron cargar las citas",
         variant: "destructive",
       });
-      return;
+    } else if (data) {
+      setAppointments(data);
     }
+    setLoading(false);
+  };
 
-    const appointment: Appointment = {
-      id: `CONT-${String(appointments.length + 1).padStart(3, "0")}`,
-      ...newAppointment,
-      date: new Date().toISOString().split("T")[0],
-    };
+  const handleCreateAppointment = async () => {
+    try {
+      dniSchema.parse(newAppointment.dni);
+      nameSchema.parse(newAppointment.fullName);
 
-    setAppointments([...appointments, appointment]);
-    setIsDialogOpen(false);
-    setNewAppointment({
-      dni: "",
-      fullName: "",
-      service: "",
-      doctor: "",
-      time: "",
-    });
+      if (!newAppointment.service || !newAppointment.doctor || !newAppointment.time) {
+        toast({
+          title: "Error",
+          description: "Por favor complete todos los campos",
+          variant: "destructive",
+        });
+        return;
+      }
 
-    toast({
-      title: "Cita registrada",
-      description: `Cita ${appointment.id} registrada exitosamente`,
-    });
+      setCreating(true);
+
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        toast({
+          title: "Error",
+          description: "No se pudo obtener el usuario actual",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      // Generar código de cita
+      const { data: codeData } = await supabase.rpc("generate_appointment_code");
+      const appointmentCode = codeData || `CONT-${Date.now()}`;
+
+      const { error } = await supabase.from("contingency_appointments").insert({
+        appointment_code: appointmentCode,
+        dni: newAppointment.dni,
+        full_name: newAppointment.fullName,
+        service: newAppointment.service,
+        doctor: newAppointment.doctor,
+        appointment_time: newAppointment.time,
+        created_by: user.id,
+      });
+
+      if (error) {
+        toast({
+          title: "Error",
+          description: error.message,
+          variant: "destructive",
+        });
+        return;
+      }
+
+      toast({
+        title: "Cita registrada",
+        description: `Cita ${appointmentCode} registrada exitosamente`,
+      });
+
+      setIsDialogOpen(false);
+      setNewAppointment({
+        dni: "",
+        fullName: "",
+        service: "",
+        doctor: "",
+        time: "",
+      });
+    } catch (err) {
+      if (err instanceof z.ZodError) {
+        toast({
+          title: "Error de validación",
+          description: err.issues[0].message,
+          variant: "destructive",
+        });
+      }
+    } finally {
+      setCreating(false);
+    }
   };
 
   const handleExport = () => {
     const csvContent = [
       ["ID", "DNI", "Nombre Completo", "Servicio", "Médico", "Hora", "Fecha"],
       ...appointments.map((apt) => [
-        apt.id,
+        apt.appointment_code,
         apt.dni,
-        apt.fullName,
+        apt.full_name,
         apt.service,
         apt.doctor,
-        apt.time,
-        apt.date,
+        apt.appointment_time,
+        apt.appointment_date,
       ]),
     ]
       .map((row) => row.join(","))
@@ -130,7 +204,17 @@ const Contingencia = () => {
     });
   };
 
-  const todayAppointments = appointments.filter((apt) => apt.date === new Date().toISOString().split("T")[0]);
+  const todayAppointments = appointments.filter(
+    (apt) => apt.appointment_date === new Date().toISOString().split("T")[0]
+  );
+
+  if (loading) {
+    return (
+      <div className="flex min-h-[50vh] items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -177,6 +261,8 @@ const Contingencia = () => {
                     placeholder="12345678"
                     value={newAppointment.dni}
                     onChange={(e) => setNewAppointment({ ...newAppointment, dni: e.target.value })}
+                    disabled={creating}
+                    maxLength={8}
                   />
                 </div>
                 <div className="space-y-2">
@@ -186,6 +272,7 @@ const Contingencia = () => {
                     placeholder="Nombres y apellidos"
                     value={newAppointment.fullName}
                     onChange={(e) => setNewAppointment({ ...newAppointment, fullName: e.target.value })}
+                    disabled={creating}
                   />
                 </div>
               </div>
@@ -195,6 +282,7 @@ const Contingencia = () => {
                   <Select
                     value={newAppointment.service}
                     onValueChange={(value) => setNewAppointment({ ...newAppointment, service: value })}
+                    disabled={creating}
                   >
                     <SelectTrigger>
                       <SelectValue placeholder="Seleccione un servicio" />
@@ -213,6 +301,7 @@ const Contingencia = () => {
                   <Select
                     value={newAppointment.doctor}
                     onValueChange={(value) => setNewAppointment({ ...newAppointment, doctor: value })}
+                    disabled={creating}
                   >
                     <SelectTrigger>
                       <SelectValue placeholder="Seleccione un médico" />
@@ -234,9 +323,11 @@ const Contingencia = () => {
                   type="time"
                   value={newAppointment.time}
                   onChange={(e) => setNewAppointment({ ...newAppointment, time: e.target.value })}
+                  disabled={creating}
                 />
               </div>
-              <Button onClick={handleCreateAppointment} className="w-full">
+              <Button onClick={handleCreateAppointment} className="w-full" disabled={creating}>
+                {creating && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                 Registrar Cita
               </Button>
             </div>
@@ -269,7 +360,7 @@ const Contingencia = () => {
                     </div>
                     <div>
                       <div className="flex items-center gap-2">
-                        <p className="font-medium text-foreground">{appointment.fullName}</p>
+                        <p className="font-medium text-foreground">{appointment.full_name}</p>
                         <Badge variant="outline">DNI: {appointment.dni}</Badge>
                       </div>
                       <p className="text-sm text-muted-foreground">{appointment.service}</p>
@@ -277,8 +368,8 @@ const Contingencia = () => {
                     </div>
                   </div>
                   <div className="text-right">
-                    <Badge className="text-base">{appointment.time}</Badge>
-                    <p className="text-xs text-muted-foreground mt-1">{appointment.id}</p>
+                    <Badge className="text-base">{appointment.appointment_time}</Badge>
+                    <p className="text-xs text-muted-foreground mt-1">{appointment.appointment_code}</p>
                   </div>
                 </div>
               ))
@@ -294,23 +385,29 @@ const Contingencia = () => {
         </CardHeader>
         <CardContent>
           <div className="space-y-2">
-            {appointments.map((appointment) => (
-              <div key={appointment.id} className="flex items-center justify-between rounded-lg border p-3">
-                <div className="flex items-center gap-3">
-                  <Badge variant="outline">{appointment.id}</Badge>
-                  <div>
-                    <p className="text-sm font-medium text-foreground">{appointment.fullName}</p>
+            {appointments.length === 0 ? (
+              <p className="text-center text-muted-foreground py-8">No hay citas registradas</p>
+            ) : (
+              appointments.map((appointment) => (
+                <div key={appointment.id} className="flex items-center justify-between rounded-lg border p-3">
+                  <div className="flex items-center gap-3">
+                    <Badge variant="outline">{appointment.appointment_code}</Badge>
+                    <div>
+                      <p className="text-sm font-medium text-foreground">{appointment.full_name}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {appointment.service} - {appointment.doctor}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-sm font-medium text-foreground">{appointment.appointment_time}</p>
                     <p className="text-xs text-muted-foreground">
-                      {appointment.service} - {appointment.doctor}
+                      {new Date(appointment.appointment_date).toLocaleDateString("es-PE")}
                     </p>
                   </div>
                 </div>
-                <div className="text-right">
-                  <p className="text-sm font-medium text-foreground">{appointment.time}</p>
-                  <p className="text-xs text-muted-foreground">{appointment.date}</p>
-                </div>
-              </div>
-            ))}
+              ))
+            )}
           </div>
         </CardContent>
       </Card>
