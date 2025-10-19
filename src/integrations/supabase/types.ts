@@ -14,16 +14,203 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      contingency_appointments: {
+        Row: {
+          appointment_code: string
+          appointment_date: string
+          appointment_time: string
+          created_at: string
+          created_by: string
+          dni: string
+          doctor: string
+          full_name: string
+          id: string
+          service: string
+          synced_at: string | null
+          synced_to_main_system: boolean | null
+        }
+        Insert: {
+          appointment_code: string
+          appointment_date?: string
+          appointment_time: string
+          created_at?: string
+          created_by: string
+          dni: string
+          doctor: string
+          full_name: string
+          id?: string
+          service: string
+          synced_at?: string | null
+          synced_to_main_system?: boolean | null
+        }
+        Update: {
+          appointment_code?: string
+          appointment_date?: string
+          appointment_time?: string
+          created_at?: string
+          created_by?: string
+          dni?: string
+          doctor?: string
+          full_name?: string
+          id?: string
+          service?: string
+          synced_at?: string | null
+          synced_to_main_system?: boolean | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "contingency_appointments_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      control_exceptions: {
+        Row: {
+          category: string
+          closed_at: string | null
+          corrective_actions: string | null
+          created_at: string
+          created_by: string
+          description: string
+          due_date: string
+          exception_code: string
+          id: string
+          responsible_user_id: string | null
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          category: string
+          closed_at?: string | null
+          corrective_actions?: string | null
+          created_at?: string
+          created_by: string
+          description: string
+          due_date: string
+          exception_code: string
+          id?: string
+          responsible_user_id?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          category?: string
+          closed_at?: string | null
+          corrective_actions?: string | null
+          created_at?: string
+          created_by?: string
+          description?: string
+          due_date?: string
+          exception_code?: string
+          id?: string
+          responsible_user_id?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "control_exceptions_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "control_exceptions_responsible_user_id_fkey"
+            columns: ["responsible_user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      profiles: {
+        Row: {
+          created_at: string
+          email: string
+          full_name: string | null
+          id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          email: string
+          full_name?: string | null
+          id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          email?: string
+          full_name?: string | null
+          id?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      user_roles: {
+        Row: {
+          created_at: string
+          id: string
+          role: Database["public"]["Enums"]["user_role"]
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          role: Database["public"]["Enums"]["user_role"]
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          role?: Database["public"]["Enums"]["user_role"]
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_roles_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      generate_appointment_code: {
+        Args: Record<PropertyKey, never>
+        Returns: string
+      }
+      generate_exception_code: {
+        Args: Record<PropertyKey, never>
+        Returns: string
+      }
+      has_role: {
+        Args: {
+          _role: Database["public"]["Enums"]["user_role"]
+          _user_id: string
+        }
+        Returns: boolean
+      }
+      is_ti_or_control: {
+        Args: Record<PropertyKey, never>
+        Returns: boolean
+      }
     }
     Enums: {
-      [_ in never]: never
+      user_role:
+        | "admin_ti"
+        | "control_interno"
+        | "admision"
+        | "personal_clinico"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -150,6 +337,13 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      user_role: [
+        "admin_ti",
+        "control_interno",
+        "admision",
+        "personal_clinico",
+      ],
+    },
   },
 } as const
