@@ -24,6 +24,11 @@ CREATE POLICY "Users can update own profile"
   FOR UPDATE
   USING (auth.uid() = id);
 
+CREATE POLICY "Users can insert own profile"
+  ON public.profiles
+  FOR INSERT
+  WITH CHECK (auth.uid() = id);
+
 -- Crear tabla de roles de usuario (separada por seguridad)
 CREATE TABLE public.user_roles (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -41,6 +46,12 @@ CREATE POLICY "Users can view own roles"
   ON public.user_roles
   FOR SELECT
   USING (auth.uid() = user_id);
+
+-- Permitir que los usuarios se asignen roles durante el registro
+CREATE POLICY "Users can insert own roles"
+  ON public.user_roles
+  FOR INSERT
+  WITH CHECK (auth.uid() = user_id);
 
 -- Función de seguridad para verificar roles
 CREATE OR REPLACE FUNCTION public.has_role(_user_id UUID, _role user_role)
@@ -81,6 +92,8 @@ LANGUAGE plpgsql
 SECURITY DEFINER
 SET search_path = public
 AS $$
+DECLARE
+  user_role user_role;
 BEGIN
   INSERT INTO public.profiles (id, email, full_name)
   VALUES (
@@ -88,6 +101,14 @@ BEGIN
     NEW.email,
     COALESCE(NEW.raw_user_meta_data->>'full_name', '')
   );
+  
+  -- Asignar rol por defecto si se especifica en metadata
+  IF NEW.raw_user_meta_data->>'role' IS NOT NULL THEN
+    user_role := (NEW.raw_user_meta_data->>'role')::user_role;
+    INSERT INTO public.user_roles (user_id, role)
+    VALUES (NEW.id, user_role);
+  END IF;
+  
   RETURN NEW;
 END;
 $$;

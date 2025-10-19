@@ -54,6 +54,7 @@ const Auth = () => {
           emailRedirectTo: `${window.location.origin}/`,
           data: {
             full_name: fullName,
+            role: role,
           },
         },
       });
@@ -76,23 +77,17 @@ const Auth = () => {
       }
 
       if (data.user) {
-        // Insertar el rol del usuario
-        const { error: roleError } = await supabase
-          .from("user_roles")
-          .insert({
-            user_id: data.user.id,
-            role: role,
-          });
-
-        if (roleError) {
-          console.error("Error asignando rol:", roleError);
-        }
-
         toast({
           title: "Registro exitoso",
           description: "Su cuenta ha sido creada. Puede iniciar sesión ahora.",
         });
         setIsLogin(true);
+        
+        // Limpiar el formulario
+        setEmail("");
+        setPassword("");
+        setFullName("");
+        setRole("personal_clinico");
       }
     } catch (err) {
       if (err instanceof z.ZodError) {
