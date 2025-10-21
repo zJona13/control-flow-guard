@@ -10,10 +10,18 @@ import { toast } from "@/hooks/use-toast";
 import { Loader2 } from "lucide-react";
 import { z } from "zod";
 
-const emailSchema = z.string().email("Email inválido").max(255, "Email demasiado largo");
+const emailSchema = z.string()
+  .email("Email inválido")
+  .max(255, "Email demasiado largo")
+  .refine((email) => {
+    // Permitir emails de dominios comunes para desarrollo
+    const allowedDomains = ['gmail.com', 'yahoo.com', 'hotmail.com', 'essalud.gob.pe', 'test.com'];
+    const domain = email.split('@')[1];
+    return allowedDomains.includes(domain);
+  }, "Dominio de email no permitido");
 const passwordSchema = z.string().min(6, "La contraseña debe tener al menos 6 caracteres").max(100, "Contraseña demasiado larga");
 
-type UserRole = "admin_ti" | "control_interno" | "admision" | "personal_clinico";
+type UserRole = "ADMIN" | "TI" | "CONTROL_INTERNO" | "ADMISION" | "CLINICO";
 
 const Auth = () => {
   const navigate = useNavigate();
@@ -22,7 +30,7 @@ const Auth = () => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [fullName, setFullName] = useState("");
-  const [role, setRole] = useState<UserRole>("personal_clinico");
+  const [role, setRole] = useState<UserRole>("CLINICO");
 
   useEffect(() => {
     const checkSession = async () => {
@@ -51,7 +59,6 @@ const Auth = () => {
         email,
         password,
         options: {
-          emailRedirectTo: `${window.location.origin}/`,
           data: {
             full_name: fullName,
             role: role,
@@ -77,6 +84,23 @@ const Auth = () => {
       }
 
       if (data.user) {
+        // Crear perfil del usuario automáticamente
+        try {
+          const [nombres, ...apellidosArray] = fullName.split(' ');
+          const apellidos = apellidosArray.join(' ') || '';
+
+          await supabase.from('perfiles').insert({
+            id: data.user.id,
+            nombres: nombres || 'Usuario',
+            apellidos: apellidos || 'Sin Apellido',
+            area: role,
+            creado_en: new Date().toISOString(),
+          });
+        } catch (profileError) {
+          console.warn('Error creating user profile:', profileError);
+          // Continuar aunque falle la creación del perfil
+        }
+
         toast({
           title: "Registro exitoso",
           description: "Su cuenta ha sido creada. Puede iniciar sesión ahora.",
@@ -87,7 +111,7 @@ const Auth = () => {
         setEmail("");
         setPassword("");
         setFullName("");
-        setRole("personal_clinico");
+        setRole("CLINICO");
       }
     } catch (err) {
       if (err instanceof z.ZodError) {
@@ -117,26 +141,46 @@ const Auth = () => {
       emailSchema.parse(email);
       passwordSchema.parse(password);
 
-      const { error } = await supabase.auth.signInWithPassword({
+      const { data, error } = await supabase.auth.signInWithPassword({
         email,
         password,
       });
 
       if (error) {
+        console.error("Login error:", error);
+        
+        // Manejar diferentes tipos de errores
         if (error.message.includes("Invalid login credentials")) {
           toast({
-            title: "Error",
+            title: "Error de autenticación",
             description: "Email o contraseña incorrectos",
+            variant: "destructive",
+          });
+        } else if (error.message.includes("Email not confirmed")) {
+          toast({
+            title: "Email no confirmado",
+            description: "Por favor confirma tu email antes de iniciar sesión",
+            variant: "destructive",
+          });
+        } else if (error.message.includes("Too many requests")) {
+          toast({
+            title: "Demasiados intentos",
+            description: "Espera unos minutos antes de intentar nuevamente",
             variant: "destructive",
           });
         } else {
           toast({
-            title: "Error",
-            description: error.message,
+            title: "Error de autenticación",
+            description: `Error: ${error.message}`,
             variant: "destructive",
           });
         }
         return;
+      }
+
+      // Verificar que el usuario se autenticó correctamente
+      if (data.user) {
+        console.log("User authenticated:", data.user);
       }
 
       toast({
@@ -217,10 +261,11 @@ const Auth = () => {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="admin_ti">Administrador de TI</SelectItem>
-                    <SelectItem value="control_interno">Control Interno</SelectItem>
-                    <SelectItem value="admision">Personal de Admisión</SelectItem>
-                    <SelectItem value="personal_clinico">Personal Clínico</SelectItem>
+                    <SelectItem value="ADMIN">Administrador</SelectItem>
+                    <SelectItem value="TI">Tecnología de Información</SelectItem>
+                    <SelectItem value="CONTROL_INTERNO">Control Interno</SelectItem>
+                    <SelectItem value="ADMISION">Personal de Admisión</SelectItem>
+                    <SelectItem value="CLINICO">Personal Clínico</SelectItem>
                   </SelectContent>
                 </Select>
               </div>

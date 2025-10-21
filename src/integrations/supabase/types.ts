@@ -14,203 +14,253 @@ export type Database = {
   }
   public: {
     Tables: {
-      contingency_appointments: {
+      perfiles: {
         Row: {
-          appointment_code: string
-          appointment_date: string
-          appointment_time: string
-          created_at: string
-          created_by: string
-          dni: string
-          doctor: string
-          full_name: string
           id: string
-          service: string
-          synced_at: string | null
-          synced_to_main_system: boolean | null
+          nombres: string
+          apellidos: string
+          area: Database["public"]["Enums"]["rol_usuario"]
+          creado_en: string
         }
         Insert: {
-          appointment_code: string
-          appointment_date?: string
-          appointment_time: string
-          created_at?: string
-          created_by: string
-          dni: string
-          doctor: string
-          full_name: string
-          id?: string
-          service: string
-          synced_at?: string | null
-          synced_to_main_system?: boolean | null
+          id: string
+          nombres: string
+          apellidos: string
+          area: Database["public"]["Enums"]["rol_usuario"]
+          creado_en?: string
         }
         Update: {
-          appointment_code?: string
-          appointment_date?: string
-          appointment_time?: string
-          created_at?: string
-          created_by?: string
-          dni?: string
-          doctor?: string
-          full_name?: string
           id?: string
-          service?: string
-          synced_at?: string | null
-          synced_to_main_system?: boolean | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "contingency_appointments_created_by_fkey"
-            columns: ["created_by"]
-            isOneToOne: false
-            referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      control_exceptions: {
-        Row: {
-          category: string
-          closed_at: string | null
-          corrective_actions: string | null
-          created_at: string
-          created_by: string
-          description: string
-          due_date: string
-          exception_code: string
-          id: string
-          responsible_user_id: string | null
-          status: string
-          updated_at: string
-        }
-        Insert: {
-          category: string
-          closed_at?: string | null
-          corrective_actions?: string | null
-          created_at?: string
-          created_by: string
-          description: string
-          due_date: string
-          exception_code: string
-          id?: string
-          responsible_user_id?: string | null
-          status?: string
-          updated_at?: string
-        }
-        Update: {
-          category?: string
-          closed_at?: string | null
-          corrective_actions?: string | null
-          created_at?: string
-          created_by?: string
-          description?: string
-          due_date?: string
-          exception_code?: string
-          id?: string
-          responsible_user_id?: string | null
-          status?: string
-          updated_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "control_exceptions_created_by_fkey"
-            columns: ["created_by"]
-            isOneToOne: false
-            referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "control_exceptions_responsible_user_id_fkey"
-            columns: ["responsible_user_id"]
-            isOneToOne: false
-            referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      profiles: {
-        Row: {
-          created_at: string
-          email: string
-          full_name: string | null
-          id: string
-          updated_at: string
-        }
-        Insert: {
-          created_at?: string
-          email: string
-          full_name?: string | null
-          id: string
-          updated_at?: string
-        }
-        Update: {
-          created_at?: string
-          email?: string
-          full_name?: string | null
-          id?: string
-          updated_at?: string
+          nombres?: string
+          apellidos?: string
+          area?: Database["public"]["Enums"]["rol_usuario"]
+          creado_en?: string
         }
         Relationships: []
       }
-      user_roles: {
+      control_excepciones: {
         Row: {
-          created_at: string
-          id: string
-          role: Database["public"]["Enums"]["user_role"]
-          user_id: string
+          id: number
+          descripcion: string
+          fecha: string
+          categoria: Database["public"]["Enums"]["categoria_falla"]
+          responsable_id: string | null
+          fecha_limite: string | null
+          estado: Database["public"]["Enums"]["estado_excepcion"]
+          causa_raiz: string | null
+          creado_por: string
+          creado_en: string
+          actualizado_en: string
         }
         Insert: {
-          created_at?: string
-          id?: string
-          role: Database["public"]["Enums"]["user_role"]
-          user_id: string
+          id?: number
+          descripcion: string
+          fecha: string
+          categoria: Database["public"]["Enums"]["categoria_falla"]
+          responsable_id?: string | null
+          fecha_limite?: string | null
+          estado?: Database["public"]["Enums"]["estado_excepcion"]
+          causa_raiz?: string | null
+          creado_por: string
+          creado_en?: string
+          actualizado_en?: string
         }
         Update: {
-          created_at?: string
-          id?: string
-          role?: Database["public"]["Enums"]["user_role"]
-          user_id?: string
+          id?: number
+          descripcion?: string
+          fecha?: string
+          categoria?: Database["public"]["Enums"]["categoria_falla"]
+          responsable_id?: string | null
+          fecha_limite?: string | null
+          estado?: Database["public"]["Enums"]["estado_excepcion"]
+          causa_raiz?: string | null
+          creado_por?: string
+          creado_en?: string
+          actualizado_en?: string
         }
         Relationships: [
           {
-            foreignKeyName: "user_roles_user_id_fkey"
-            columns: ["user_id"]
+            foreignKeyName: "control_excepciones_creado_por_fkey"
+            columns: ["creado_por"]
             isOneToOne: false
-            referencedRelation: "profiles"
+            referencedRelation: "perfiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "control_excepciones_responsable_id_fkey"
+            columns: ["responsable_id"]
+            isOneToOne: false
+            referencedRelation: "perfiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      citas_contingencia: {
+        Row: {
+          id: number
+          dni: string
+          nombre_completo: string
+          servicio: string
+          medico_asignado: string
+          fecha_hora: string
+          estado: Database["public"]["Enums"]["estado_cita"]
+          creado_por: string
+          creado_en: string
+          actualizado_en: string
+        }
+        Insert: {
+          id?: number
+          dni: string
+          nombre_completo: string
+          servicio: string
+          medico_asignado: string
+          fecha_hora: string
+          estado?: Database["public"]["Enums"]["estado_cita"]
+          creado_por: string
+          creado_en?: string
+          actualizado_en?: string
+        }
+        Update: {
+          id?: number
+          dni?: string
+          nombre_completo?: string
+          servicio?: string
+          medico_asignado?: string
+          fecha_hora?: string
+          estado?: Database["public"]["Enums"]["estado_cita"]
+          creado_por?: string
+          creado_en?: string
+          actualizado_en?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "citas_contingencia_creado_por_fkey"
+            columns: ["creado_por"]
+            isOneToOne: false
+            referencedRelation: "perfiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ti_responsables: {
+        Row: {
+          id: number
+          categoria: Database["public"]["Enums"]["categoria_falla"]
+          responsable_id: string
+          sla_dias: number
+          actualizado_en: string
+        }
+        Insert: {
+          id?: number
+          categoria: Database["public"]["Enums"]["categoria_falla"]
+          responsable_id: string
+          sla_dias: number
+          actualizado_en?: string
+        }
+        Update: {
+          id?: number
+          categoria?: Database["public"]["Enums"]["categoria_falla"]
+          responsable_id?: string
+          sla_dias?: number
+          actualizado_en?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ti_responsables_responsable_id_fkey"
+            columns: ["responsable_id"]
+            isOneToOne: false
+            referencedRelation: "perfiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      excepcion_acciones: {
+        Row: {
+          id: number
+          excepcion_id: number
+          autor_id: string
+          detalle: string
+          nuevo_estado: Database["public"]["Enums"]["estado_excepcion"] | null
+          creado_en: string
+        }
+        Insert: {
+          id?: number
+          excepcion_id: number
+          autor_id: string
+          detalle: string
+          nuevo_estado?: Database["public"]["Enums"]["estado_excepcion"] | null
+          creado_en?: string
+        }
+        Update: {
+          id?: number
+          excepcion_id?: number
+          autor_id?: string
+          detalle?: string
+          nuevo_estado?: Database["public"]["Enums"]["estado_excepcion"] | null
+          creado_en?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "excepcion_acciones_excepcion_id_fkey"
+            columns: ["excepcion_id"]
+            isOneToOne: false
+            referencedRelation: "control_excepciones"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "excepcion_acciones_autor_id_fkey"
+            columns: ["autor_id"]
+            isOneToOne: false
+            referencedRelation: "perfiles"
             referencedColumns: ["id"]
           },
         ]
       }
     }
     Views: {
-      [_ in never]: never
+      v_excepciones_abiertas: {
+        Row: {
+          categoria: Database["public"]["Enums"]["categoria_falla"]
+          total: number
+        }
+        Relationships: []
+      }
+      v_tiempo_prom_resolucion: {
+        Row: {
+          promedio_cierre: string | null
+        }
+        Relationships: []
+      }
+      v_top5_fallas: {
+        Row: {
+          categoria: Database["public"]["Enums"]["categoria_falla"]
+          frecuencia: number
+        }
+        Relationships: []
+      }
+      v_excepciones_vencidas: {
+        Row: {
+          id: number
+          descripcion: string
+          categoria: Database["public"]["Enums"]["categoria_falla"]
+          responsable_id: string | null
+          fecha_limite: string | null
+          estado: Database["public"]["Enums"]["estado_excepcion"]
+        }
+        Relationships: []
+      }
     }
     Functions: {
-      generate_appointment_code: {
+      mi_area: {
         Args: Record<PropertyKey, never>
-        Returns: string
-      }
-      generate_exception_code: {
-        Args: Record<PropertyKey, never>
-        Returns: string
-      }
-      has_role: {
-        Args: {
-          _role: Database["public"]["Enums"]["user_role"]
-          _user_id: string
-        }
-        Returns: boolean
-      }
-      is_ti_or_control: {
-        Args: Record<PropertyKey, never>
-        Returns: boolean
+        Returns: Database["public"]["Enums"]["rol_usuario"] | null
       }
     }
     Enums: {
-      user_role:
-        | "admin_ti"
-        | "control_interno"
-        | "admision"
-        | "personal_clinico"
+      rol_usuario: "ADMIN" | "TI" | "CONTROL_INTERNO" | "ADMISION" | "CLINICO"
+      estado_excepcion: "ABIERTO" | "EN_PROGRESO" | "CERRADO"
+      categoria_falla: "FALLA_BACKUP" | "ACCESO_INAPROPIADO" | "INCIDENTE_SEGURIDAD" | "DISPONIBILIDAD" | "OTRO"
+      estado_cita: "PROGRAMADA" | "ATENDIDA" | "CANCELADA"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -338,12 +388,10 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
-      user_role: [
-        "admin_ti",
-        "control_interno",
-        "admision",
-        "personal_clinico",
-      ],
+      rol_usuario: ["ADMIN", "TI", "CONTROL_INTERNO", "ADMISION", "CLINICO"],
+      estado_excepcion: ["ABIERTO", "EN_PROGRESO", "CERRADO"],
+      categoria_falla: ["FALLA_BACKUP", "ACCESO_INAPROPIADO", "INCIDENTE_SEGURIDAD", "DISPONIBILIDAD", "OTRO"],
+      estado_cita: ["PROGRAMADA", "ATENDIDA", "CANCELADA"],
     },
   },
 } as const

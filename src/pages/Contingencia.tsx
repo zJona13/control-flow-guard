@@ -12,15 +12,14 @@ import { toast } from "@/hooks/use-toast";
 import { z } from "zod";
 
 interface Appointment {
-  id: string;
-  appointment_code: string;
+  id: number;
   dni: string;
-  full_name: string;
-  service: string;
-  doctor: string;
-  appointment_time: string;
-  appointment_date: string;
-  created_at: string;
+  nombre_completo: string;
+  servicio: string;
+  medico_asignado: string;
+  fecha_hora: string;
+  estado: string;
+  creado_en: string;
 }
 
 const dniSchema = z.string().regex(/^\d{8}$/, "DNI debe tener 8 dígitos");
@@ -36,6 +35,7 @@ const Contingencia = () => {
     fullName: "",
     service: "",
     doctor: "",
+    date: "",
     time: "",
   });
 
@@ -70,7 +70,7 @@ const Contingencia = () => {
         {
           event: "*",
           schema: "public",
-          table: "contingency_appointments",
+          table: "citas_contingencia",
         },
         () => {
           fetchAppointments();
@@ -84,21 +84,34 @@ const Contingencia = () => {
   }, []);
 
   const fetchAppointments = async () => {
-    const { data, error } = await supabase
-      .from("contingency_appointments")
-      .select("*")
-      .order("created_at", { ascending: false });
+    try {
+      const { data, error } = await supabase
+        .from("citas_contingencia")
+        .select("*")
+        .order("creado_en", { ascending: false });
 
-    if (error) {
+      if (error) {
+        console.error("Error fetching appointments:", error);
+        toast({
+          title: "Error",
+          description: "No se pudieron cargar las citas. Verifique la conexión.",
+          variant: "destructive",
+        });
+        setAppointments([]);
+      } else if (data) {
+        setAppointments(data);
+      }
+    } catch (err) {
+      console.error("Unexpected error:", err);
       toast({
         title: "Error",
-        description: "No se pudieron cargar las citas",
+        description: "Error inesperado al cargar las citas",
         variant: "destructive",
       });
-    } else if (data) {
-      setAppointments(data);
+      setAppointments([]);
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
 
   const handleCreateAppointment = async () => {
@@ -106,7 +119,7 @@ const Contingencia = () => {
       dniSchema.parse(newAppointment.dni);
       nameSchema.parse(newAppointment.fullName);
 
-      if (!newAppointment.service || !newAppointment.doctor || !newAppointment.time) {
+      if (!newAppointment.service || !newAppointment.doctor || !newAppointment.time || !newAppointment.date) {
         toast({
           title: "Error",
           description: "Por favor complete todos los campos",
@@ -127,18 +140,17 @@ const Contingencia = () => {
         return;
       }
 
-      // Generar código de cita
-      const { data: codeData } = await supabase.rpc("generate_appointment_code");
-      const appointmentCode = codeData || `CONT-${Date.now()}`;
+      // Crear fecha y hora combinada
+      const fechaHora = new Date(`${newAppointment.date}T${newAppointment.time}`);
 
-      const { error } = await supabase.from("contingency_appointments").insert({
-        appointment_code: appointmentCode,
+      const { error } = await supabase.from("citas_contingencia").insert({
         dni: newAppointment.dni,
-        full_name: newAppointment.fullName,
-        service: newAppointment.service,
-        doctor: newAppointment.doctor,
-        appointment_time: newAppointment.time,
-        created_by: user.id,
+        nombre_completo: newAppointment.fullName,
+        servicio: newAppointment.service,
+        medico_asignado: newAppointment.doctor,
+        fecha_hora: fechaHora.toISOString(),
+        estado: "PROGRAMADA",
+        creado_por: user.id,
       });
 
       if (error) {
@@ -152,7 +164,7 @@ const Contingencia = () => {
 
       toast({
         title: "Cita registrada",
-        description: `Cita ${appointmentCode} registrada exitosamente`,
+        description: "Cita registrada exitosamente",
       });
 
       setIsDialogOpen(false);
@@ -161,6 +173,7 @@ const Contingencia = () => {
         fullName: "",
         service: "",
         doctor: "",
+        date: "",
         time: "",
       });
     } catch (err) {
@@ -178,15 +191,14 @@ const Contingencia = () => {
 
   const handleExport = () => {
     const csvContent = [
-      ["ID", "DNI", "Nombre Completo", "Servicio", "Médico", "Hora", "Fecha"],
+      ["ID", "DNI", "Nombre Completo", "Servicio", "Médico", "Fecha y Hora"],
       ...appointments.map((apt) => [
-        apt.appointment_code,
+        apt.id,
         apt.dni,
-        apt.full_name,
-        apt.service,
-        apt.doctor,
-        apt.appointment_time,
-        apt.appointment_date,
+        apt.nombre_completo,
+        apt.servicio,
+        apt.medico_asignado,
+        new Date(apt.fecha_hora).toLocaleString("es-PE"),
       ]),
     ]
       .map((row) => row.join(","))
@@ -205,7 +217,7 @@ const Contingencia = () => {
   };
 
   const todayAppointments = appointments.filter(
-    (apt) => apt.appointment_date === new Date().toISOString().split("T")[0]
+    (apt) => new Date(apt.fecha_hora).toDateString() === new Date().toDateString()
   );
 
   if (loading) {
@@ -272,6 +284,28 @@ const Contingencia = () => {
                     placeholder="Nombres y apellidos"
                     value={newAppointment.fullName}
                     onChange={(e) => setNewAppointment({ ...newAppointment, fullName: e.target.value })}
+                    disabled={creating}
+                  />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="date">Fecha</Label>
+                  <Input
+                    id="date"
+                    type="date"
+                    value={newAppointment.date}
+                    onChange={(e) => setNewAppointment({ ...newAppointment, date: e.target.value })}
+                    disabled={creating}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="time">Hora</Label>
+                  <Input
+                    id="time"
+                    type="time"
+                    value={newAppointment.time}
+                    onChange={(e) => setNewAppointment({ ...newAppointment, time: e.target.value })}
                     disabled={creating}
                   />
                 </div>
@@ -360,16 +394,16 @@ const Contingencia = () => {
                     </div>
                     <div>
                       <div className="flex items-center gap-2">
-                        <p className="font-medium text-foreground">{appointment.full_name}</p>
+                        <p className="font-medium text-foreground">{appointment.nombre_completo}</p>
                         <Badge variant="outline">DNI: {appointment.dni}</Badge>
                       </div>
-                      <p className="text-sm text-muted-foreground">{appointment.service}</p>
-                      <p className="text-sm text-muted-foreground">{appointment.doctor}</p>
+                      <p className="text-sm text-muted-foreground">{appointment.servicio}</p>
+                      <p className="text-sm text-muted-foreground">{appointment.medico_asignado}</p>
                     </div>
                   </div>
                   <div className="text-right">
-                    <Badge className="text-base">{appointment.appointment_time}</Badge>
-                    <p className="text-xs text-muted-foreground mt-1">{appointment.appointment_code}</p>
+                    <Badge className="text-base">{new Date(appointment.fecha_hora).toLocaleTimeString("es-PE", { hour: '2-digit', minute: '2-digit' })}</Badge>
+                    <p className="text-xs text-muted-foreground mt-1">#{appointment.id}</p>
                   </div>
                 </div>
               ))
@@ -391,18 +425,18 @@ const Contingencia = () => {
               appointments.map((appointment) => (
                 <div key={appointment.id} className="flex items-center justify-between rounded-lg border p-3">
                   <div className="flex items-center gap-3">
-                    <Badge variant="outline">{appointment.appointment_code}</Badge>
+                    <Badge variant="outline">#{appointment.id}</Badge>
                     <div>
-                      <p className="text-sm font-medium text-foreground">{appointment.full_name}</p>
+                      <p className="text-sm font-medium text-foreground">{appointment.nombre_completo}</p>
                       <p className="text-xs text-muted-foreground">
-                        {appointment.service} - {appointment.doctor}
+                        {appointment.servicio} - {appointment.medico_asignado}
                       </p>
                     </div>
                   </div>
                   <div className="text-right">
-                    <p className="text-sm font-medium text-foreground">{appointment.appointment_time}</p>
+                    <p className="text-sm font-medium text-foreground">{new Date(appointment.fecha_hora).toLocaleTimeString("es-PE", { hour: '2-digit', minute: '2-digit' })}</p>
                     <p className="text-xs text-muted-foreground">
-                      {new Date(appointment.appointment_date).toLocaleDateString("es-PE")}
+                      {new Date(appointment.fecha_hora).toLocaleDateString("es-PE")}
                     </p>
                   </div>
                 </div>

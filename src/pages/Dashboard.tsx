@@ -3,15 +3,22 @@ import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { AlertTriangle, CheckCircle2, Clock, TrendingUp, Loader2 } from "lucide-react";
+import { SupabaseConnectionTest } from "@/components/SupabaseConnectionTest";
+import { EnvDebug } from "@/components/EnvDebug";
+import { AuthTest } from "@/components/AuthTest";
+import { AuthDebug } from "@/components/AuthDebug";
+import { AuthTestSimple } from "@/components/AuthTestSimple";
+import { SupabaseConfigCheck } from "@/components/SupabaseConfigCheck";
+import { AuthTroubleshoot } from "@/components/AuthTroubleshoot";
 
 interface Exception {
-  id: string;
-  exception_code: string;
-  description: string;
-  status: string;
-  category: string;
-  created_at: string;
-  due_date: string;
+  id: number;
+  descripcion: string;
+  fecha: string;
+  categoria: string;
+  estado: string;
+  creado_en: string;
+  fecha_limite: string | null;
 }
 
 const Dashboard = () => {
@@ -20,16 +27,26 @@ const Dashboard = () => {
 
   useEffect(() => {
     const fetchExceptions = async () => {
-      const { data, error } = await supabase
-        .from("control_exceptions")
-        .select("*")
-        .order("created_at", { ascending: false })
-        .limit(10);
+      try {
+        const { data, error } = await supabase
+          .from("control_excepciones")
+          .select("*")
+          .order("creado_en", { ascending: false })
+          .limit(10);
 
-      if (!error && data) {
-        setExceptions(data);
+        if (error) {
+          console.error("Error fetching exceptions:", error);
+          // Si hay error, mostrar datos vacíos en lugar de fallar
+          setExceptions([]);
+        } else if (data) {
+          setExceptions(data);
+        }
+      } catch (err) {
+        console.error("Unexpected error:", err);
+        setExceptions([]);
+      } finally {
+        setLoading(false);
       }
-      setLoading(false);
     };
 
     fetchExceptions();
@@ -42,7 +59,7 @@ const Dashboard = () => {
         {
           event: "*",
           schema: "public",
-          table: "control_exceptions",
+          table: "control_excepciones",
         },
         () => {
           fetchExceptions();
@@ -56,14 +73,14 @@ const Dashboard = () => {
   }, []);
 
   // Calcular estadísticas en tiempo real
-  const openExceptions = exceptions.filter((e) => e.status === "open").length;
-  const closedExceptions = exceptions.filter((e) => e.status === "closed").length;
-  const inProgressExceptions = exceptions.filter((e) => e.status === "in_progress").length;
+  const openExceptions = exceptions.filter((e) => e.estado === "ABIERTO").length;
+  const closedExceptions = exceptions.filter((e) => e.estado === "CERRADO").length;
+  const inProgressExceptions = exceptions.filter((e) => e.estado === "EN_PROGRESO").length;
 
   // Calcular top issues
   const categoryCount: Record<string, number> = {};
   exceptions.forEach((exc) => {
-    categoryCount[exc.category] = (categoryCount[exc.category] || 0) + 1;
+    categoryCount[exc.categoria] = (categoryCount[exc.categoria] || 0) + 1;
   });
 
   const topIssues = Object.entries(categoryCount)
@@ -111,19 +128,19 @@ const Dashboard = () => {
   ];
 
   const recentExceptions = exceptions.slice(0, 3).map((exc) => ({
-    id: exc.exception_code,
-    description: exc.description,
-    status: exc.status,
-    days: Math.floor((new Date().getTime() - new Date(exc.created_at).getTime()) / (1000 * 60 * 60 * 24)),
+    id: exc.id.toString(),
+    description: exc.descripcion,
+    status: exc.estado,
+    days: Math.floor((new Date().getTime() - new Date(exc.creado_en).getTime()) / (1000 * 60 * 60 * 24)),
   }));
 
   function getCategoryLabel(category: string) {
     const labels: Record<string, string> = {
-      backup_failure: "Falla de Backup",
-      inappropriate_access: "Acceso Inapropiado",
-      config_error: "Error de Configuración",
-      policy_violation: "Violación de Política",
-      network_issue: "Problema de Red",
+      FALLA_BACKUP: "Falla de Backup",
+      ACCESO_INAPROPIADO: "Acceso Inapropiado",
+      INCIDENTE_SEGURIDAD: "Incidente de Seguridad",
+      DISPONIBILIDAD: "Disponibilidad",
+      OTRO: "Otro",
     };
     return labels[category] || category;
   }
@@ -145,11 +162,11 @@ const Dashboard = () => {
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case "open":
+      case "ABIERTO":
         return "destructive";
-      case "in_progress":
+      case "EN_PROGRESO":
         return "warning";
-      case "closed":
+      case "CERRADO":
         return "success";
       default:
         return "secondary";
@@ -158,11 +175,11 @@ const Dashboard = () => {
 
   const getStatusText = (status: string) => {
     switch (status) {
-      case "open":
+      case "ABIERTO":
         return "Abierto";
-      case "in_progress":
+      case "EN_PROGRESO":
         return "En Progreso";
-      case "closed":
+      case "CERRADO":
         return "Cerrado";
       default:
         return status;
@@ -208,6 +225,38 @@ const Dashboard = () => {
         })}
       </div>
 
+      {/* Debug Components */}
+      <div className="space-y-4">
+        <div className="flex justify-center">
+          <AuthTroubleshoot />
+        </div>
+        <div className="flex justify-center">
+          <SupabaseConfigCheck />
+        </div>
+        <div className="flex justify-center">
+          <AuthDebug />
+        </div>
+        <div className="grid gap-4 md:grid-cols-2">
+          <div className="flex justify-center">
+            <AuthTestSimple />
+          </div>
+          <div className="flex justify-center">
+            <AuthTest />
+          </div>
+        </div>
+        <div className="grid gap-4 md:grid-cols-3">
+          <div className="flex justify-center">
+            <SupabaseConnectionTest />
+          </div>
+          <div className="flex justify-center">
+            <EnvDebug />
+          </div>
+          <div className="flex justify-center">
+            <AuthDebug />
+          </div>
+        </div>
+      </div>
+
       <div className="grid gap-6 md:grid-cols-2">
         {/* Top 5 Issues */}
         <Card>
@@ -224,7 +273,7 @@ const Dashboard = () => {
                       <p className="text-sm font-medium text-foreground">{issue.type}</p>
                       <p className="text-xs text-muted-foreground">{issue.count} ocurrencias</p>
                     </div>
-                    <Badge variant={getSeverityColor(issue.severity) as any}>
+                    <Badge variant={getSeverityColor(issue.severity) as "destructive" | "warning" | "secondary"}>
                       {issue.severity === "critical" && "Crítico"}
                       {issue.severity === "high" && "Alto"}
                       {issue.severity === "medium" && "Medio"}
@@ -253,7 +302,7 @@ const Dashboard = () => {
                     <div className="flex-1">
                       <div className="flex items-center gap-2">
                         <p className="text-sm font-medium text-primary">{exception.id}</p>
-                        <Badge variant={getStatusColor(exception.status) as any} className="text-xs">
+                        <Badge variant={getStatusColor(exception.status) as "destructive" | "warning" | "success" | "secondary"} className="text-xs">
                           {getStatusText(exception.status)}
                         </Badge>
                       </div>

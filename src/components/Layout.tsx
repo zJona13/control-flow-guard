@@ -1,10 +1,10 @@
-import { ReactNode, useEffect, useState } from "react";
+import { ReactNode } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
-import { supabase } from "@/integrations/supabase/client";
 import { cn } from "@/lib/utils";
 import { LayoutDashboard, AlertTriangle, Calendar, LogOut } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { toast } from "@/hooks/use-toast";
+import { useAuth } from "@/hooks/useAuth";
 
 interface LayoutProps {
   children: ReactNode;
@@ -13,20 +13,10 @@ interface LayoutProps {
 const Layout = ({ children }: LayoutProps) => {
   const location = useLocation();
   const navigate = useNavigate();
-  const [userEmail, setUserEmail] = useState<string>("");
-
-  useEffect(() => {
-    const getUserEmail = async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (user) {
-        setUserEmail(user.email || "");
-      }
-    };
-    getUserEmail();
-  }, []);
+  const { user, profile, userRole, signOut } = useAuth();
 
   const handleLogout = async () => {
-    const { error } = await supabase.auth.signOut();
+    const { error } = await signOut();
     if (error) {
       toast({
         title: "Error",
@@ -41,6 +31,17 @@ const Layout = ({ children }: LayoutProps) => {
       navigate("/auth");
     }
   };
+  const getRoleLabel = (role: string) => {
+    const labels: Record<string, string> = {
+      ADMIN: "Administrador",
+      TI: "Tecnología de Información",
+      CONTROL_INTERNO: "Control Interno",
+      ADMISION: "Personal de Admisión",
+      CLINICO: "Personal Clínico",
+    };
+    return labels[role] || role;
+  };
+
   const navItems = [
     { path: "/", label: "Dashboard", icon: LayoutDashboard },
     { path: "/excepciones", label: "Excepciones de Control", icon: AlertTriangle },
@@ -63,8 +64,12 @@ const Layout = ({ children }: LayoutProps) => {
           </div>
           <div className="flex items-center gap-4">
             <div className="text-right">
-              <p className="text-sm font-medium text-foreground">{userEmail}</p>
-              <p className="text-xs text-muted-foreground">Usuario del Sistema</p>
+              <p className="text-sm font-medium text-foreground">
+                {profile ? `${profile.nombres} ${profile.apellidos}` : user?.email || "Usuario"}
+              </p>
+              <p className="text-xs text-muted-foreground">
+                {userRole ? getRoleLabel(userRole) : "Usuario del Sistema"}
+              </p>
             </div>
             <Button variant="outline" size="sm" onClick={handleLogout} className="gap-2">
               <LogOut className="h-4 w-4" />

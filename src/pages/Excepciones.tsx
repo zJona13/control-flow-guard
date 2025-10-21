@@ -12,20 +12,20 @@ import { Plus, Search, AlertCircle, Clock, Loader2 } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { z } from "zod";
 
-type ExceptionStatus = "open" | "in_progress" | "closed";
-type ExceptionCategory = "backup_failure" | "inappropriate_access" | "config_error" | "policy_violation" | "network_issue";
+type ExceptionStatus = "ABIERTO" | "EN_PROGRESO" | "CERRADO";
+type ExceptionCategory = "FALLA_BACKUP" | "ACCESO_INAPROPIADO" | "INCIDENTE_SEGURIDAD" | "DISPONIBILIDAD" | "OTRO";
 
 interface Exception {
-  id: string;
-  exception_code: string;
-  description: string;
-  category: ExceptionCategory;
-  status: ExceptionStatus;
-  responsible_user_id: string | null;
-  created_by: string;
-  due_date: string;
-  created_at: string;
-  corrective_actions: string | null;
+  id: number;
+  descripcion: string;
+  fecha: string;
+  categoria: ExceptionCategory;
+  estado: ExceptionStatus;
+  responsable_id: string | null;
+  creado_por: string;
+  fecha_limite: string | null;
+  creado_en: string;
+  causa_raiz: string | null;
 }
 
 const descriptionSchema = z.string().min(10, "La descripción debe tener al menos 10 caracteres").max(1000);
@@ -37,8 +37,8 @@ const Excepciones = () => {
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
   const [newException, setNewException] = useState({
-    description: "",
-    category: "" as ExceptionCategory,
+    descripcion: "",
+    categoria: "" as ExceptionCategory,
   });
 
   useEffect(() => {
@@ -52,7 +52,7 @@ const Excepciones = () => {
         {
           event: "*",
           schema: "public",
-          table: "control_exceptions",
+          table: "control_excepciones",
         },
         () => {
           fetchExceptions();
@@ -66,57 +66,70 @@ const Excepciones = () => {
   }, []);
 
   const fetchExceptions = async () => {
-    const { data, error } = await supabase
-      .from("control_exceptions")
-      .select("*")
-      .order("created_at", { ascending: false });
+    try {
+      const { data, error } = await supabase
+        .from("control_excepciones")
+        .select("*")
+        .order("creado_en", { ascending: false });
 
-    if (error) {
+      if (error) {
+        console.error("Error fetching exceptions:", error);
+        toast({
+          title: "Error",
+          description: "No se pudieron cargar las excepciones. Verifique la conexión.",
+          variant: "destructive",
+        });
+        setExceptions([]);
+      } else if (data) {
+        setExceptions(data as Exception[]);
+      }
+    } catch (err) {
+      console.error("Unexpected error:", err);
       toast({
         title: "Error",
-        description: "No se pudieron cargar las excepciones",
+        description: "Error inesperado al cargar las excepciones",
         variant: "destructive",
       });
-    } else if (data) {
-      setExceptions(data as Exception[]);
+      setExceptions([]);
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
 
   const getCategoryLabel = (category: ExceptionCategory) => {
     const labels = {
-      backup_failure: "Falla de Backup",
-      inappropriate_access: "Acceso Inapropiado",
-      config_error: "Error de Configuración",
-      policy_violation: "Violación de Política",
-      network_issue: "Problema de Red",
+      FALLA_BACKUP: "Falla de Backup",
+      ACCESO_INAPROPIADO: "Acceso Inapropiado",
+      INCIDENTE_SEGURIDAD: "Incidente de Seguridad",
+      DISPONIBILIDAD: "Disponibilidad",
+      OTRO: "Otro",
     };
     return labels[category];
   };
 
   const getStatusLabel = (status: ExceptionStatus) => {
     const labels = {
-      open: "Abierto",
-      in_progress: "En Progreso",
-      closed: "Cerrado",
+      ABIERTO: "Abierto",
+      EN_PROGRESO: "En Progreso",
+      CERRADO: "Cerrado",
     };
     return labels[status];
   };
 
   const getStatusVariant = (status: ExceptionStatus): "destructive" | "warning" | "success" => {
     const variants = {
-      open: "destructive" as const,
-      in_progress: "warning" as const,
-      closed: "success" as const,
+      ABIERTO: "destructive" as const,
+      EN_PROGRESO: "warning" as const,
+      CERRADO: "success" as const,
     };
     return variants[status];
   };
 
   const handleCreateException = async () => {
     try {
-      descriptionSchema.parse(newException.description);
+      descriptionSchema.parse(newException.descripcion);
       
-      if (!newException.category) {
+      if (!newException.categoria) {
         toast({
           title: "Error",
           description: "Por favor seleccione una categoría",
@@ -137,21 +150,16 @@ const Excepciones = () => {
         return;
       }
 
-      // Generar código de excepción
-      const { data: codeData } = await supabase.rpc("generate_exception_code");
-      const exceptionCode = codeData || `EXC-${Date.now()}`;
+      // Calcular fecha actual
+      const today = new Date().toISOString().split("T")[0];
 
-      // Calcular fecha límite (7 días desde ahora)
-      const dueDate = new Date();
-      dueDate.setDate(dueDate.getDate() + 7);
-
-      const { error } = await supabase.from("control_exceptions").insert({
-        exception_code: exceptionCode,
-        description: newException.description,
-        category: newException.category,
-        status: "open",
-        created_by: user.id,
-        due_date: dueDate.toISOString().split("T")[0],
+      const { error } = await supabase.from("control_excepciones").insert({
+        descripcion: newException.descripcion,
+        fecha: today,
+        categoria: newException.categoria,
+        estado: "ABIERTO",
+        creado_por: user.id,
+        fecha_limite: null, // Se calculará automáticamente por el trigger
       });
 
       if (error) {
@@ -165,11 +173,11 @@ const Excepciones = () => {
 
       toast({
         title: "Excepción creada",
-        description: `Se ha registrado la excepción ${exceptionCode} correctamente`,
+        description: "Se ha registrado la excepción correctamente",
       });
 
       setIsDialogOpen(false);
-      setNewException({ description: "", category: "" as ExceptionCategory });
+      setNewException({ descripcion: "", categoria: "" as ExceptionCategory });
     } catch (err) {
       if (err instanceof z.ZodError) {
         toast({
@@ -185,12 +193,12 @@ const Excepciones = () => {
 
   const filteredExceptions = exceptions.filter(
     (exc) =>
-      exc.description.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      exc.exception_code.toLowerCase().includes(searchTerm.toLowerCase())
+      exc.descripcion.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      exc.id.toString().includes(searchTerm.toLowerCase())
   );
 
-  const isOverdue = (dueDate: string, status: string) => {
-    return new Date(dueDate) < new Date() && status !== "closed";
+  const isOverdue = (dueDate: string | null, status: string) => {
+    return dueDate && new Date(dueDate) < new Date() && status !== "CERRADO";
   };
 
   if (loading) {
@@ -226,27 +234,27 @@ const Excepciones = () => {
                 <Textarea
                   id="description"
                   placeholder="Describa la excepción detectada..."
-                  value={newException.description}
-                  onChange={(e) => setNewException({ ...newException, description: e.target.value })}
+                  value={newException.descripcion}
+                  onChange={(e) => setNewException({ ...newException, descripcion: e.target.value })}
                   disabled={creating}
                 />
               </div>
               <div className="space-y-2">
                 <Label htmlFor="category">Categoría</Label>
                 <Select
-                  value={newException.category}
-                  onValueChange={(value) => setNewException({ ...newException, category: value as ExceptionCategory })}
+                  value={newException.categoria}
+                  onValueChange={(value) => setNewException({ ...newException, categoria: value as ExceptionCategory })}
                   disabled={creating}
                 >
                   <SelectTrigger>
                     <SelectValue placeholder="Seleccione una categoría" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="backup_failure">Falla de Backup</SelectItem>
-                    <SelectItem value="inappropriate_access">Acceso Inapropiado</SelectItem>
-                    <SelectItem value="config_error">Error de Configuración</SelectItem>
-                    <SelectItem value="policy_violation">Violación de Política</SelectItem>
-                    <SelectItem value="network_issue">Problema de Red</SelectItem>
+                    <SelectItem value="FALLA_BACKUP">Falla de Backup</SelectItem>
+                    <SelectItem value="ACCESO_INAPROPIADO">Acceso Inapropiado</SelectItem>
+                    <SelectItem value="INCIDENTE_SEGURIDAD">Incidente de Seguridad</SelectItem>
+                    <SelectItem value="DISPONIBILIDAD">Disponibilidad</SelectItem>
+                    <SelectItem value="OTRO">Otro</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -290,19 +298,19 @@ const Excepciones = () => {
                 <div className="flex items-start justify-between">
                   <div className="space-y-1">
                     <div className="flex items-center gap-2">
-                      <CardTitle className="text-primary">{exception.exception_code}</CardTitle>
-                      <Badge variant={getStatusVariant(exception.status)}>
-                        {getStatusLabel(exception.status)}
+                      <CardTitle className="text-primary">#{exception.id}</CardTitle>
+                      <Badge variant={getStatusVariant(exception.estado)}>
+                        {getStatusLabel(exception.estado)}
                       </Badge>
-                      <Badge variant="outline">{getCategoryLabel(exception.category)}</Badge>
-                      {isOverdue(exception.due_date, exception.status) && (
+                      <Badge variant="outline">{getCategoryLabel(exception.categoria)}</Badge>
+                      {isOverdue(exception.fecha_limite, exception.estado) && (
                         <Badge variant="destructive" className="gap-1">
                           <AlertCircle className="h-3 w-3" />
                           Vencido
                         </Badge>
                       )}
                     </div>
-                    <CardDescription>{exception.description}</CardDescription>
+                    <CardDescription>{exception.descripcion}</CardDescription>
                   </div>
                 </div>
               </CardHeader>
@@ -311,25 +319,25 @@ const Excepciones = () => {
                   <div>
                     <p className="text-sm font-medium text-muted-foreground">Fecha de Creación</p>
                     <p className="text-sm text-foreground">
-                      {new Date(exception.created_at).toLocaleDateString("es-PE")}
+                      {new Date(exception.creado_en).toLocaleDateString("es-PE")}
                     </p>
                   </div>
                   <div>
                     <p className="text-sm font-medium text-muted-foreground">Fecha Límite</p>
                     <p className="flex items-center gap-1 text-sm text-foreground">
                       <Clock className="h-3 w-3" />
-                      {new Date(exception.due_date).toLocaleDateString("es-PE")}
+                      {exception.fecha_limite ? new Date(exception.fecha_limite).toLocaleDateString("es-PE") : "Sin fecha límite"}
                     </p>
                   </div>
                   <div>
                     <p className="text-sm font-medium text-muted-foreground">Estado</p>
-                    <p className="text-sm text-foreground">{getStatusLabel(exception.status)}</p>
+                    <p className="text-sm text-foreground">{getStatusLabel(exception.estado)}</p>
                   </div>
                 </div>
-                {exception.corrective_actions && (
+                {exception.causa_raiz && (
                   <div className="mt-4">
-                    <p className="text-sm font-medium text-muted-foreground">Acciones Correctivas</p>
-                    <p className="text-sm text-foreground">{exception.corrective_actions}</p>
+                    <p className="text-sm font-medium text-muted-foreground">Causa Raíz</p>
+                    <p className="text-sm text-foreground">{exception.causa_raiz}</p>
                   </div>
                 )}
               </CardContent>
