@@ -3,13 +3,6 @@ import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { AlertTriangle, CheckCircle2, Clock, TrendingUp, Loader2 } from "lucide-react";
-import { SupabaseConnectionTest } from "@/components/SupabaseConnectionTest";
-import { EnvDebug } from "@/components/EnvDebug";
-import { AuthTest } from "@/components/AuthTest";
-import { AuthDebug } from "@/components/AuthDebug";
-import { AuthTestSimple } from "@/components/AuthTestSimple";
-import { SupabaseConfigCheck } from "@/components/SupabaseConfigCheck";
-import { AuthTroubleshoot } from "@/components/AuthTroubleshoot";
 
 interface Exception {
   id: number;
@@ -225,37 +218,6 @@ const Dashboard = () => {
         })}
       </div>
 
-      {/* Debug Components */}
-      <div className="space-y-4">
-        <div className="flex justify-center">
-          <AuthTroubleshoot />
-        </div>
-        <div className="flex justify-center">
-          <SupabaseConfigCheck />
-        </div>
-        <div className="flex justify-center">
-          <AuthDebug />
-        </div>
-        <div className="grid gap-4 md:grid-cols-2">
-          <div className="flex justify-center">
-            <AuthTestSimple />
-          </div>
-          <div className="flex justify-center">
-            <AuthTest />
-          </div>
-        </div>
-        <div className="grid gap-4 md:grid-cols-3">
-          <div className="flex justify-center">
-            <SupabaseConnectionTest />
-          </div>
-          <div className="flex justify-center">
-            <EnvDebug />
-          </div>
-          <div className="flex justify-center">
-            <AuthDebug />
-          </div>
-        </div>
-      </div>
 
       <div className="grid gap-6 md:grid-cols-2">
         {/* Top 5 Issues */}

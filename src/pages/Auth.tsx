@@ -207,10 +207,10 @@ const Auth = () => {
         <CardHeader>
           <div className="flex items-center justify-center gap-2 mb-4">
             <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-primary">
-              <span className="text-2xl font-bold text-primary-foreground">CI</span>
+              <span className="text-2xl font-bold text-primary-foreground">HL</span>
             </div>
           </div>
-          <CardTitle className="text-center">Sistema de Control Interno</CardTitle>
+          <CardTitle className="text-center">Hospital Luis Heysen de EsSalud</CardTitle>
           <CardDescription className="text-center">
             {isLogin ? "Inicie sesión en su cuenta" : "Registre una nueva cuenta"}
           </CardDescription>
@@ -247,6 +247,7 @@ const Auth = () => {
               <Input
                 id="password"
                 type="password"
+                placeholder="********"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 required

@@ -55,11 +55,11 @@ const Layout = ({ children }: LayoutProps) => {
         <div className="container flex h-16 items-center justify-between px-4">
           <div className="flex items-center gap-2">
             <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary">
-              <span className="text-xl font-bold text-primary-foreground">CI</span>
+              <span className="text-xl font-bold text-primary-foreground">HL</span>
             </div>
             <div>
-              <h1 className="text-lg font-bold text-foreground">Control Interno</h1>
-              <p className="text-xs text-muted-foreground">Sistema COBIT MEA02 | DSS04</p>
+              <h1 className="text-lg font-bold text-foreground">Hospital Luis Heysen de EsSalud</h1>
+              <p className="text-xs text-muted-foreground">Sistema De Control Interno</p>
             </div>
           </div>
           <div className="flex items-center gap-4">
