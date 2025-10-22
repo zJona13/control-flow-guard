@@ -50,9 +50,23 @@ export const createCita = async (req, res) => {
       return res.status(400).json({ error: 'No se pueden programar citas en fechas pasadas' });
     }
 
+    // Convertir fecha ISO a formato MySQL DATETIME (YYYY-MM-DD HH:MM:SS)
+    const formatDateForMySQL = (isoString) => {
+      const date = new Date(isoString);
+      const year = date.getFullYear();
+      const month = String(date.getMonth() + 1).padStart(2, '0');
+      const day = String(date.getDate()).padStart(2, '0');
+      const hours = String(date.getHours()).padStart(2, '0');
+      const minutes = String(date.getMinutes()).padStart(2, '0');
+      const seconds = String(date.getSeconds()).padStart(2, '0');
+      return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
+    };
+
+    const fechaHoraMysql = formatDateForMySQL(fecha_hora);
+
     const [result] = await pool.query(
       'INSERT INTO citas_contingencia (dni, nombre_completo, servicio, medico_asignado, fecha_hora, estado, creado_por) VALUES (?, ?, ?, ?, ?, ?, ?)',
-      [dni, nombre_completo, servicio, medico_asignado, fecha_hora, 'PROGRAMADA', creadoPor]
+      [dni, nombre_completo, servicio, medico_asignado, fechaHoraMysql, 'PROGRAMADA', creadoPor]
     );
 
     // Obtener la cita creada

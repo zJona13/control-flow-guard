@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { citasAPI } from "@/services/api";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -7,7 +7,9 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { AlertCircle, Calendar, Download, Plus, User, Loader2, CheckCircle, XCircle } from "lucide-react";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Calendar as CalendarComponent } from "@/components/ui/calendar";
+import { AlertCircle, Calendar, Download, Plus, Loader2, CheckCircle, XCircle, Clock } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { z } from "zod";
 
@@ -25,11 +27,174 @@ interface Appointment {
 const dniSchema = z.string().regex(/^\d{8}$/, "DNI debe tener 8 dígitos");
 const nameSchema = z.string().min(3, "Nombre muy corto").max(100, "Nombre muy largo");
 
+// Helper component for calendar day cells
+interface DayCellProps {
+  date: Date;
+  appointments: Appointment[];
+  selectedDate: Date | undefined;
+  onDateClick: (date: Date) => void;
+  onUpdateStatus: (id: number, status: string) => void;
+  getStatusBadgeVariant: (status: string) => "default" | "secondary" | "destructive" | "outline";
+  getStatusBadgeText: (status: string) => string;
+}
+
+// Factory function to create Day component wrapper
+interface DayWrapperProps {
+  date: Date;
+  getAppointmentsForDate: (date: Date) => Appointment[];
+  selectedDate: Date | undefined;
+  onDateClick: (date: Date) => void;
+  onUpdateStatus: (id: number, status: string) => void;
+  getStatusBadgeVariant: (status: string) => "default" | "secondary" | "destructive" | "outline";
+  getStatusBadgeText: (status: string) => string;
+}
+
+const DayWrapper = ({ 
+  date, 
+  getAppointmentsForDate,
+  selectedDate, 
+  onDateClick, 
+  onUpdateStatus,
+  getStatusBadgeVariant,
+  getStatusBadgeText
+}: DayWrapperProps) => {
+  const appointments = getAppointmentsForDate(date);
+  return (
+    <DayCell
+      date={date}
+      appointments={appointments}
+      selectedDate={selectedDate}
+      onDateClick={onDateClick}
+      onUpdateStatus={onUpdateStatus}
+      getStatusBadgeVariant={getStatusBadgeVariant}
+      getStatusBadgeText={getStatusBadgeText}
+    />
+  );
+};
+
+const DayCell = ({ 
+  date, 
+  appointments, 
+  selectedDate, 
+  onDateClick, 
+  onUpdateStatus,
+  getStatusBadgeVariant,
+  getStatusBadgeText
+}: DayCellProps) => {
+  const appointmentCount = appointments.length;
+  const isSelected = date.toDateString() === selectedDate?.toDateString();
+  
+  const getStatusColor = (status: string) => {
+    if (status === 'PROGRAMADA') return 'bg-blue-500';
+    if (status === 'ATENDIDA') return 'bg-green-500';
+    return 'bg-red-500';
+  };
+
+  if (appointmentCount > 0) {
+    return (
+      <div className="relative w-full h-full min-h-[60px] flex items-center justify-center">
+        <Popover>
+          <PopoverTrigger asChild>
+            <button
+              type="button"
+              className={`w-full h-full min-h-[60px] relative hover:bg-accent rounded-md transition-colors ${
+                isSelected ? 'bg-primary text-primary-foreground' : ''
+              }`}
+              onClick={(e) => {
+                e.preventDefault();
+                onDateClick(date);
+              }}
+            >
+              <span className="relative z-10 text-base font-medium">{date.getDate()}</span>
+              <div className="absolute bottom-2 left-1/2 transform -translate-x-1/2 flex gap-0.5">
+                {appointments.slice(0, 3).map((apt) => (
+                  <div
+                    key={apt.id}
+                    className={`w-2 h-2 rounded-full ${getStatusColor(apt.estado)}`}
+                  />
+                ))}
+                {appointmentCount > 3 && (
+                  <span className="text-[10px] ml-0.5 font-semibold">+{appointmentCount - 3}</span>
+                )}
+              </div>
+            </button>
+          </PopoverTrigger>
+          <PopoverContent className="w-80 p-3" align="center">
+            <div className="space-y-2">
+              <h4 className="font-medium text-sm mb-2">
+                Citas del {date.toLocaleDateString("es-PE", { day: 'numeric', month: 'long' })}
+              </h4>
+              {appointments.map((appointment) => (
+                <div key={appointment.id} className="border rounded-lg p-2 space-y-1">
+                  <div className="flex items-center justify-between">
+                    <span className="font-medium text-sm">{appointment.nombre_completo}</span>
+                    <Badge variant={getStatusBadgeVariant(appointment.estado)} className="text-xs">
+                      {getStatusBadgeText(appointment.estado)}
+                    </Badge>
+                  </div>
+                  <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                    <Clock className="h-3 w-3" />
+                    {new Date(appointment.fecha_hora).toLocaleTimeString("es-PE", { 
+                      hour: '2-digit', 
+                      minute: '2-digit' 
+                    })}
+                  </div>
+                  <p className="text-xs text-muted-foreground">{appointment.servicio}</p>
+                  <p className="text-xs text-muted-foreground">{appointment.medico_asignado}</p>
+                  {appointment.estado === "PROGRAMADA" && (
+                    <div className="flex gap-1 pt-1">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => onUpdateStatus(appointment.id, "ATENDIDA")}
+                        className="h-7 text-xs flex-1"
+                      >
+                        <CheckCircle className="h-3 w-3 mr-1" />
+                        Atender
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => onUpdateStatus(appointment.id, "CANCELADA")}
+                        className="h-7 text-xs flex-1"
+                      >
+                        <XCircle className="h-3 w-3 mr-1" />
+                        Cancelar
+                      </Button>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          </PopoverContent>
+        </Popover>
+      </div>
+    );
+  }
+
+  return (
+    <div className="relative w-full h-full min-h-[60px] flex items-center justify-center">
+      <button
+        type="button"
+        className="w-full h-full min-h-[60px] hover:bg-accent rounded-md transition-colors"
+        onClick={(e) => {
+          e.preventDefault();
+          onDateClick(date);
+        }}
+      >
+        <span className="text-base font-medium">{date.getDate()}</span>
+      </button>
+    </div>
+  );
+};
+
 const Contingencia = () => {
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [selectedDate, setSelectedDate] = useState<Date | undefined>(undefined);
+  const [calendarMonth, setCalendarMonth] = useState<Date>(new Date());
   const [newAppointment, setNewAppointment] = useState({
     dni: "",
     fullName: "",
@@ -149,10 +314,12 @@ const Contingencia = () => {
           variant: "destructive",
         });
       } else {
-        const error = err as any;
+        const errorMessage = err && typeof err === 'object' && 'response' in err 
+          ? (err as { response?: { data?: { error?: string } } }).response?.data?.error 
+          : undefined;
         toast({
           title: "Error",
-          description: error.response?.data?.error || "Error al crear cita",
+          description: errorMessage || "Error al crear cita",
           variant: "destructive",
         });
       }
@@ -231,9 +398,55 @@ const Contingencia = () => {
     }
   };
 
-  const todayAppointments = appointments.filter(
-    (apt) => new Date(apt.fecha_hora).toDateString() === new Date().toDateString()
-  );
+  // Helper function to get appointments for a specific date
+  const getAppointmentsForDate = (date: Date): Appointment[] => {
+    return appointments.filter(
+      (apt) => new Date(apt.fecha_hora).toDateString() === date.toDateString()
+    );
+  };
+
+  // Helper function to handle date click on calendar
+  const handleDateClick = (date: Date) => {
+    const dateAppointments = getAppointmentsForDate(date);
+    
+    if (dateAppointments.length === 0) {
+      // No appointments on this date - open create dialog with pre-filled date
+      const formattedDate = date.toISOString().split('T')[0];
+      setNewAppointment({
+        dni: "",
+        fullName: "",
+        service: "",
+        doctor: "",
+        date: formattedDate,
+        time: "",
+      });
+      setIsDialogOpen(true);
+      setSelectedDate(date);
+    } else {
+      // Has appointments - will be handled by popover
+      setSelectedDate(date);
+    }
+  };
+
+  // Helper function to check if a date has appointments
+  const hasAppointments = (date: Date): boolean => {
+    return getAppointmentsForDate(date).length > 0;
+  };
+
+  // Memoize calendar components to avoid linter warnings
+  const calendarComponents = useMemo(() => ({
+    Day: ({ date }: { date: Date }) => (
+      <DayWrapper
+        date={date}
+        getAppointmentsForDate={getAppointmentsForDate}
+        selectedDate={selectedDate}
+        onDateClick={handleDateClick}
+        onUpdateStatus={handleUpdateStatus}
+        getStatusBadgeVariant={getStatusBadgeVariant}
+        getStatusBadgeText={getStatusBadgeText}
+      />
+    )
+  }), [appointments, selectedDate]);
 
   if (loading) {
     return (
@@ -287,7 +500,7 @@ const Contingencia = () => {
                     id="dni"
                     placeholder="12345678"
                     value={newAppointment.dni}
-                    onChange={(e) => setNewAppointment({ ...newAppointment, dni: e.target.value.replace(/\D/g, '') })}
+                    onChange={(e) => setNewAppointment({ ...newAppointment, dni: e.target.value.replaceAll(/\D/g, '') })}
                     disabled={creating}
                     maxLength={8}
                     pattern="[0-9]{8}"
@@ -384,62 +597,59 @@ const Contingencia = () => {
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Calendar className="h-5 w-5" />
-            Citas del Día
+            CITAS
           </CardTitle>
-          <CardDescription>Vista rápida para personal clínico - DSS04.04.4</CardDescription>
+          <CardDescription>Calendario mensual de citas - DSS04.04.4</CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="space-y-3">
-            {todayAppointments.length === 0 ? (
-              <p className="text-center text-muted-foreground py-8">No hay citas registradas para hoy</p>
-            ) : (
-              todayAppointments.map((appointment) => (
-                <div key={appointment.id} className="flex items-center justify-between rounded-lg border p-4">
-                  <div className="flex items-start gap-4">
-                    <div className="flex h-12 w-12 items-center justify-center rounded-full bg-primary/10">
-                      <User className="h-6 w-6 text-primary" />
-                    </div>
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <p className="font-medium text-foreground">{appointment.nombre_completo}</p>
-                        <Badge variant="outline">DNI: {appointment.dni}</Badge>
-                        <Badge variant={getStatusBadgeVariant(appointment.estado)}>
-                          {getStatusBadgeText(appointment.estado)}
-                        </Badge>
-                      </div>
-                      <p className="text-sm text-muted-foreground">{appointment.servicio}</p>
-                      <p className="text-sm text-muted-foreground">{appointment.medico_asignado}</p>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <div className="text-right">
-                      <Badge className="text-base">{new Date(appointment.fecha_hora).toLocaleTimeString("es-PE", { hour: '2-digit', minute: '2-digit' })}</Badge>
-                      <p className="text-xs text-muted-foreground mt-1">#{appointment.id}</p>
-                    </div>
-                    {appointment.estado === "PROGRAMADA" && (
-                      <div className="flex gap-1">
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => handleUpdateStatus(appointment.id, "ATENDIDA")}
-                          className="h-8 w-8 p-0"
-                        >
-                          <CheckCircle className="h-4 w-4 text-green-600" />
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => handleUpdateStatus(appointment.id, "CANCELADA")}
-                          className="h-8 w-8 p-0"
-                        >
-                          <XCircle className="h-4 w-4 text-red-600" />
-                        </Button>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              ))
-            )}
+          <div className="flex flex-col items-center w-full">
+            <div className="w-full max-w-4xl">
+              <CalendarComponent
+                mode="single"
+                selected={selectedDate}
+                onSelect={(date) => date && handleDateClick(date)}
+                month={calendarMonth}
+                onMonthChange={setCalendarMonth}
+                className="rounded-md border w-full p-6"
+                classNames={{
+                  months: "flex flex-col sm:flex-row space-y-4 sm:space-x-4 sm:space-y-0 w-full",
+                  month: "space-y-4 w-full",
+                  caption: "flex justify-center pt-1 relative items-center mb-4",
+                  caption_label: "text-lg font-semibold",
+                  nav: "space-x-1 flex items-center",
+                  nav_button: "h-8 w-8 bg-transparent p-0 opacity-50 hover:opacity-100",
+                  table: "w-full border-collapse space-y-1",
+                  head_row: "flex w-full",
+                  head_cell: "text-muted-foreground rounded-md w-full font-semibold text-sm py-2",
+                  row: "flex w-full mt-2",
+                  cell: "relative p-0 text-center text-sm focus-within:relative focus-within:z-20 w-full h-20",
+                  day: "w-full h-full",
+                }}
+                modifiers={{
+                  hasAppointments: (date) => hasAppointments(date),
+                }}
+                modifiersStyles={{
+                  hasAppointments: {
+                    fontWeight: 'bold',
+                  }
+                }}
+                components={calendarComponents}
+              />
+            </div>
+            <div className="mt-6 flex items-center gap-6 text-sm text-muted-foreground">
+              <div className="flex items-center gap-2">
+                <div className="w-3 h-3 rounded-full bg-blue-500" />
+                <span className="font-medium">Programada</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="w-3 h-3 rounded-full bg-green-500" />
+                <span className="font-medium">Atendida</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="w-3 h-3 rounded-full bg-red-500" />
+                <span className="font-medium">Cancelada</span>
+              </div>
+            </div>
           </div>
         </CardContent>
       </Card>
