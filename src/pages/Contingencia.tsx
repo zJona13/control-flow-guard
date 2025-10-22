@@ -60,10 +60,52 @@ const Contingencia = () => {
   ];
 
   useEffect(() => {
+    let isMounted = true;
+    let channel: any = null;
+
+    const fetchAppointments = async () => {
+      if (!isMounted) return;
+      
+      try {
+        const { data, error } = await supabase
+          .from("citas_contingencia")
+          .select("*")
+          .order("creado_en", { ascending: false });
+
+        if (!isMounted) return;
+
+        if (error) {
+          console.error("Error fetching appointments:", error);
+          toast({
+            title: "Error de conexión",
+            description: "No se pudieron cargar las citas. Verifique su conexión a internet.",
+            variant: "destructive",
+          });
+          setAppointments([]);
+        } else if (data) {
+          setAppointments(data);
+        }
+      } catch (err) {
+        console.error("Unexpected error:", err);
+        if (isMounted) {
+          toast({
+            title: "Error inesperado",
+            description: "Error inesperado al cargar las citas. Recargue la página.",
+            variant: "destructive",
+          });
+          setAppointments([]);
+        }
+      } finally {
+        if (isMounted) {
+          setLoading(false);
+        }
+      }
+    };
+
     fetchAppointments();
 
     // Suscribirse a cambios en tiempo real
-    const channel = supabase
+    channel = supabase
       .channel("appointments-changes")
       .on(
         "postgres_changes",
@@ -73,46 +115,20 @@ const Contingencia = () => {
           table: "citas_contingencia",
         },
         () => {
-          fetchAppointments();
+          if (isMounted) {
+            fetchAppointments();
+          }
         }
       )
       .subscribe();
 
     return () => {
-      supabase.removeChannel(channel);
+      isMounted = false;
+      if (channel) {
+        supabase.removeChannel(channel);
+      }
     };
   }, []);
-
-  const fetchAppointments = async () => {
-    try {
-      const { data, error } = await supabase
-        .from("citas_contingencia")
-        .select("*")
-        .order("creado_en", { ascending: false });
-
-      if (error) {
-        console.error("Error fetching appointments:", error);
-        toast({
-          title: "Error de conexión",
-          description: "No se pudieron cargar las citas. Verifique su conexión a internet.",
-          variant: "destructive",
-        });
-        setAppointments([]);
-      } else if (data) {
-        setAppointments(data);
-      }
-    } catch (err) {
-      console.error("Unexpected error:", err);
-      toast({
-        title: "Error inesperado",
-        description: "Error inesperado al cargar las citas. Recargue la página.",
-        variant: "destructive",
-      });
-      setAppointments([]);
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const handleCreateAppointment = async () => {
     try {
@@ -244,7 +260,7 @@ const Contingencia = () => {
       });
 
       // Refresh appointments
-      fetchAppointments();
+      window.location.reload();
     } catch (err) {
       console.error("Error updating status:", err);
       toast({

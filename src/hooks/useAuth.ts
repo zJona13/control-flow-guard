@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { User, Session } from '@supabase/supabase-js';
 import type { Database } from '@/integrations/supabase/types';
@@ -12,8 +12,18 @@ export const useAuth = () => {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [userRole, setUserRole] = useState<UserRole | null>(null);
   const [loading, setLoading] = useState(true);
+  const timeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const isInitializedRef = useRef(false);
 
   useEffect(() => {
+    // Timeout de seguridad para evitar carga infinita
+    timeoutRef.current = setTimeout(() => {
+      if (loading) {
+        console.warn('Auth loading timeout - forcing loading to false');
+        setLoading(false);
+      }
+    }, 10000); // 10 segundos timeout
+
     // Get initial session
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
@@ -22,12 +32,18 @@ export const useAuth = () => {
         fetchUserProfile(session.user.id);
       } else {
         setLoading(false);
+        isInitializedRef.current = true;
       }
+    }).catch((error) => {
+      console.error('Error getting initial session:', error);
+      setLoading(false);
+      isInitializedRef.current = true;
     });
 
     // Listen for auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
+        console.log('Auth state change:', event, session?.user?.id);
         setSession(session);
         setUser(session?.user ?? null);
         
@@ -37,11 +53,17 @@ export const useAuth = () => {
           setProfile(null);
           setUserRole(null);
           setLoading(false);
+          isInitializedRef.current = true;
         }
       }
     );
 
-    return () => subscription.unsubscribe();
+    return () => {
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current);
+      }
+      subscription.unsubscribe();
+    };
   }, []);
 
   const fetchUserProfile = async (userId: string) => {
@@ -55,24 +77,21 @@ export const useAuth = () => {
 
       if (profileError && profileError.code !== 'PGRST116') {
         console.error('Error fetching profile:', profileError);
-      } else if (profileData) {
-        setProfile(profileData);
-      } else {
-        // Create profile if it doesn't exist
+        // Si no hay perfil, crear uno por defecto
         const { data: user } = await supabase.auth.getUser();
         if (user.user) {
           await createUserProfile(user.user);
         }
-      }
-
-      // El rol está en la tabla perfiles como 'area'
-      if (profileData) {
+      } else if (profileData) {
+        setProfile(profileData);
         setUserRole(profileData.area);
       }
+
     } catch (error) {
       console.error('Unexpected error fetching user profile:', error);
     } finally {
       setLoading(false);
+      isInitializedRef.current = true;
     }
   };
 

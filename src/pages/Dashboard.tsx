@@ -19,7 +19,12 @@ const Dashboard = () => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    let isMounted = true;
+    let channel: any = null;
+
     const fetchExceptions = async () => {
+      if (!isMounted) return;
+      
       try {
         const { data, error } = await supabase
           .from("control_excepciones")
@@ -27,25 +32,30 @@ const Dashboard = () => {
           .order("creado_en", { ascending: false })
           .limit(10);
 
+        if (!isMounted) return;
+
         if (error) {
           console.error("Error fetching exceptions:", error);
-          // Si hay error, mostrar datos vacíos en lugar de fallar
           setExceptions([]);
         } else if (data) {
           setExceptions(data);
         }
       } catch (err) {
         console.error("Unexpected error:", err);
-        setExceptions([]);
+        if (isMounted) {
+          setExceptions([]);
+        }
       } finally {
-        setLoading(false);
+        if (isMounted) {
+          setLoading(false);
+        }
       }
     };
 
     fetchExceptions();
 
     // Suscribirse a cambios en tiempo real
-    const channel = supabase
+    channel = supabase
       .channel("dashboard-exceptions")
       .on(
         "postgres_changes",
@@ -55,13 +65,18 @@ const Dashboard = () => {
           table: "control_excepciones",
         },
         () => {
-          fetchExceptions();
+          if (isMounted) {
+            fetchExceptions();
+          }
         }
       )
       .subscribe();
 
     return () => {
-      supabase.removeChannel(channel);
+      isMounted = false;
+      if (channel) {
+        supabase.removeChannel(channel);
+      }
     };
   }, []);
 

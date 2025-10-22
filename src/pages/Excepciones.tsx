@@ -42,10 +42,52 @@ const Excepciones = () => {
   });
 
   useEffect(() => {
+    let isMounted = true;
+    let channel: any = null;
+
+    const fetchExceptions = async () => {
+      if (!isMounted) return;
+      
+      try {
+        const { data, error } = await supabase
+          .from("control_excepciones")
+          .select("*")
+          .order("creado_en", { ascending: false });
+
+        if (!isMounted) return;
+
+        if (error) {
+          console.error("Error fetching exceptions:", error);
+          toast({
+            title: "Error",
+            description: "No se pudieron cargar las excepciones. Verifique la conexión.",
+            variant: "destructive",
+          });
+          setExceptions([]);
+        } else if (data) {
+          setExceptions(data as Exception[]);
+        }
+      } catch (err) {
+        console.error("Unexpected error:", err);
+        if (isMounted) {
+          toast({
+            title: "Error",
+            description: "Error inesperado al cargar las excepciones",
+            variant: "destructive",
+          });
+          setExceptions([]);
+        }
+      } finally {
+        if (isMounted) {
+          setLoading(false);
+        }
+      }
+    };
+
     fetchExceptions();
 
     // Suscribirse a cambios en tiempo real
-    const channel = supabase
+    channel = supabase
       .channel("exceptions-changes")
       .on(
         "postgres_changes",
@@ -55,46 +97,20 @@ const Excepciones = () => {
           table: "control_excepciones",
         },
         () => {
-          fetchExceptions();
+          if (isMounted) {
+            fetchExceptions();
+          }
         }
       )
       .subscribe();
 
     return () => {
-      supabase.removeChannel(channel);
+      isMounted = false;
+      if (channel) {
+        supabase.removeChannel(channel);
+      }
     };
   }, []);
-
-  const fetchExceptions = async () => {
-    try {
-      const { data, error } = await supabase
-        .from("control_excepciones")
-        .select("*")
-        .order("creado_en", { ascending: false });
-
-      if (error) {
-        console.error("Error fetching exceptions:", error);
-        toast({
-          title: "Error",
-          description: "No se pudieron cargar las excepciones. Verifique la conexión.",
-          variant: "destructive",
-        });
-        setExceptions([]);
-      } else if (data) {
-        setExceptions(data as Exception[]);
-      }
-    } catch (err) {
-      console.error("Unexpected error:", err);
-      toast({
-        title: "Error",
-        description: "Error inesperado al cargar las excepciones",
-        variant: "destructive",
-      });
-      setExceptions([]);
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const getCategoryLabel = (category: ExceptionCategory) => {
     const labels = {

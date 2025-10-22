@@ -42,6 +42,10 @@ const Layout = ({ children }: LayoutProps) => {
     return labels[role] || role;
   };
 
+  // Memoizar valores calculados para evitar re-renders innecesarios
+  const userDisplayName = profile ? `${profile.nombres} ${profile.apellidos}` : user?.email || "Usuario";
+  const userRoleLabel = userRole ? getRoleLabel(userRole) : "Usuario del Sistema";
+
   const navItems = [
     { path: "/", label: "Dashboard", icon: LayoutDashboard },
     { path: "/excepciones", label: "Excepciones de Control", icon: AlertTriangle },
@@ -65,10 +69,10 @@ const Layout = ({ children }: LayoutProps) => {
           <div className="flex items-center gap-4">
             <div className="text-right">
               <p className="text-sm font-medium text-foreground">
-                {profile ? `${profile.nombres} ${profile.apellidos}` : user?.email || "Usuario"}
+                {userDisplayName}
               </p>
               <p className="text-xs text-muted-foreground">
-                {userRole ? getRoleLabel(userRole) : "Usuario del Sistema"}
+                {userRoleLabel}
               </p>
             </div>
             <Button variant="outline" size="sm" onClick={handleLogout} className="gap-2">
