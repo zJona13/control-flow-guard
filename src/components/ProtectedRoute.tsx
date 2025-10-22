@@ -21,7 +21,10 @@ const ProtectedRoute = ({ children }: ProtectedRouteProps) => {
     );
   }
 
-  if (!user) {
+  // Verificar si hay token en localStorage
+  const token = localStorage.getItem('token');
+  
+  if (!user || !token) {
     return <Navigate to="/auth" replace />;
   }
 

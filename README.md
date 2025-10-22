@@ -1,73 +1,228 @@
-# Welcome to your Lovable project
+# Control Flow Guard - Sistema de Control Interno
 
-## Project info
+Sistema de gestión de excepciones de control interno y registro de citas de contingencia para el Hospital Luis Heysen de EsSalud.
 
-**URL**: https://lovable.dev/projects/4dfd17d3-5b93-4ae5-8dc5-a84b887e7a7f
+## 🚀 Características
 
-## How can I edit this code?
+- **Gestión de Excepciones de Control (MEA02)**
+  - Registro y seguimiento de excepciones
+  - Asignación automática de responsables por SLA
+  - Bitácora de acciones correctivas
+  - Dashboard con métricas clave
 
-There are several ways of editing your application.
+- **Módulo de Contingencia (DSS04)**
+  - Registro de citas cuando el sistema principal está caído
+  - Exportación de datos para sincronización posterior
+  - Vista de citas del día para personal clínico
 
-**Use Lovable**
+- **Autenticación y Autorización**
+  - Sistema basado en JWT
+  - Control de acceso por roles
+  - Sesiones seguras
 
-Simply visit the [Lovable Project](https://lovable.dev/projects/4dfd17d3-5b93-4ae5-8dc5-a84b887e7a7f) and start prompting.
+## 📋 Requisitos
 
-Changes made via Lovable will be committed automatically to this repo.
+- Laragon con MySQL
+- Node.js v18+
+- npm o yarn
 
-**Use your preferred IDE**
+## 🛠️ Instalación Rápida
 
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
+### 1. Iniciar MySQL en Laragon
 
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
+```bash
+# Abrir Laragon e iniciar los servicios
+```
 
-Follow these steps:
+### 2. Instalar y configurar el backend
 
-```sh
-# Step 1: Clone the repository using the project's Git URL.
-git clone <YOUR_GIT_URL>
-
-# Step 2: Navigate to the project directory.
-cd <YOUR_PROJECT_NAME>
-
-# Step 3: Install the necessary dependencies.
-npm i
-
-# Step 4: Start the development server with auto-reloading and an instant preview.
+```bash
+cd backend
+npm install
+npm run db:init
 npm run dev
 ```
 
-**Edit a file directly in GitHub**
+### 3. Instalar y configurar el frontend
 
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
+```bash
+npm install
+npm run dev
+```
 
-**Use GitHub Codespaces**
+### 4. Acceder al sistema
 
-- Navigate to the main page of your repository.
-- Click on the "Code" button (green button) near the top right.
-- Select the "Codespaces" tab.
-- Click on "New codespace" to launch a new Codespace environment.
-- Edit files directly within the Codespace and commit and push your changes once you're done.
+- Frontend: `http://localhost:5173`
+- Backend API: `http://localhost:3001`
 
-## What technologies are used for this project?
+**Credenciales iniciales:**
+- Email: `admin@essalud.gob.pe`
+- Password: `admin123`
 
-This project is built with:
+## 📖 Documentación Completa
 
-- Vite
-- TypeScript
-- React
-- shadcn-ui
-- Tailwind CSS
+Ver [INSTALLATION.md](./INSTALLATION.md) para guía detallada de instalación y configuración.
 
-## How can I deploy this project?
+## 🏗️ Arquitectura
 
-Simply open [Lovable](https://lovable.dev/projects/4dfd17d3-5b93-4ae5-8dc5-a84b887e7a7f) and click on Share -> Publish.
+### Frontend
+- React 18 con TypeScript
+- Vite como bundler
+- Tailwind CSS + shadcn/ui
+- React Router para navegación
+- Axios para peticiones HTTP
 
-## Can I connect a custom domain to my Lovable project?
+### Backend
+- Node.js con Express
+- MySQL como base de datos
+- JWT para autenticación
+- bcrypt para hash de contraseñas
 
-Yes, you can!
+## 📁 Estructura del Proyecto
 
-To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
+```
+control-flow-guard/
+├── backend/              # Backend API
+│   ├── config/          # Configuración
+│   ├── controllers/     # Controladores
+│   ├── middleware/      # Middleware
+│   ├── routes/         # Rutas
+│   └── server.js       # Servidor
+├── src/                 # Frontend
+│   ├── components/     # Componentes React
+│   ├── hooks/         # Custom hooks
+│   ├── pages/         # Páginas
+│   ├── services/      # API client
+│   └── main.tsx       # Entrada
+└── sql/                # Scripts SQL
+    └── mysql_schema.sql
+```
 
-Read more here: [Setting up a custom domain](https://docs.lovable.dev/features/custom-domain#custom-domain)
+## 🔐 Roles y Permisos
+
+| Rol | Permisos |
+|-----|----------|
+| **ADMIN** | Acceso completo a todas las funcionalidades |
+| **TI** | Gestión de excepciones técnicas |
+| **CONTROL_INTERNO** | Auditoría y revisión de controles |
+| **ADMISION** | Gestión de citas de contingencia |
+| **CLINICO** | Visualización y atención de citas |
+
+## 🔧 Configuración
+
+### Variables de Entorno - Backend
+
+```env
+DB_HOST=localhost
+DB_USER=root
+DB_PASSWORD=
+DB_NAME=control_flow_guard
+JWT_SECRET=<tu-secreto-jwt>
+JWT_EXPIRES_IN=7d
+PORT=3001
+```
+
+### Variables de Entorno - Frontend
+
+```env
+VITE_API_URL=http://localhost:3001
+```
+
+## 📊 Base de Datos
+
+El esquema incluye:
+
+- **usuarios**: Usuarios del sistema con roles
+- **control_excepciones**: Registro de excepciones
+- **excepcion_acciones**: Bitácora de acciones correctivas
+- **citas_contingencia**: Citas registradas en modo contingencia
+- **ti_responsables**: Asignación de responsables por categoría
+
+## 🚦 Scripts Disponibles
+
+### Frontend
+```bash
+npm run dev          # Desarrollo
+npm run build        # Build producción
+npm run preview      # Preview build
+npm run lint         # Linter
+```
+
+### Backend
+```bash
+npm run dev          # Desarrollo con hot reload
+npm start            # Producción
+npm run db:init      # Inicializar BD
+```
+
+## 🔄 Migración desde Supabase
+
+Este proyecto fue migrado de Supabase a MySQL local. Principales cambios:
+
+- ✅ Autenticación JWT propia
+- ✅ API REST con Express
+- ✅ MySQL en lugar de PostgreSQL
+- ✅ RLS implementado en backend
+- ✅ Eliminadas dependencias de Supabase
+
+## 📝 API Endpoints
+
+### Autenticación
+- `POST /api/auth/register` - Registro
+- `POST /api/auth/login` - Login
+- `GET /api/auth/profile` - Perfil
+- `POST /api/auth/logout` - Logout
+
+### Excepciones
+- `GET /api/excepciones` - Listar
+- `POST /api/excepciones` - Crear
+- `PATCH /api/excepciones/:id` - Actualizar
+- `GET /api/excepciones/estadisticas` - Stats
+
+### Citas
+- `GET /api/citas` - Listar
+- `POST /api/citas` - Crear
+- `PATCH /api/citas/:id` - Actualizar
+- `GET /api/citas/export` - Exportar CSV
+
+## 🛡️ Seguridad
+
+- Contraseñas hasheadas con bcrypt
+- JWT para autenticación stateless
+- Control de acceso basado en roles
+- Validación de inputs con express-validator
+- Prepared statements para prevenir SQL injection
+
+## 🐛 Solución de Problemas
+
+### MySQL no conecta
+```bash
+# Verificar que MySQL esté corriendo en Laragon
+# Verificar credenciales en backend/.env
+```
+
+### Error de token
+```bash
+# Limpiar localStorage y volver a iniciar sesión
+```
+
+### Puerto en uso
+```bash
+# Cambiar PORT en backend/.env
+# Cambiar puerto en vite.config.ts
+```
+
+## 📄 Licencia
+
+Este proyecto es privado y está destinado exclusivamente para uso interno del Hospital Luis Heysen de EsSalud.
+
+## 🤝 Contribuir
+
+1. Crear rama feature
+2. Realizar cambios
+3. Crear pull request
+4. Esperar revisión
+
+## 📞 Contacto
+
+Para soporte técnico o consultas, contactar al equipo de TI del hospital.

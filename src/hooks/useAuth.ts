@@ -1,15 +1,14 @@
 import { useState, useEffect, useRef } from 'react';
-import { supabase } from '@/integrations/supabase/client';
-import { User, Session } from '@supabase/supabase-js';
-import type { Database } from '@/integrations/supabase/types';
+import { authAPI, User } from '@/services/api';
 
-type Profile = Database['public']['Tables']['perfiles']['Row'];
-type UserRole = Database['public']['Enums']['rol_usuario'];
+type UserRole = 'ADMIN' | 'TI' | 'CONTROL_INTERNO' | 'ADMISION' | 'CLINICO';
+
+interface ExtendedUser extends User {
+  area: UserRole;
+}
 
 export const useAuth = () => {
-  const [user, setUser] = useState<User | null>(null);
-  const [session, setSession] = useState<Session | null>(null);
-  const [profile, setProfile] = useState<Profile | null>(null);
+  const [user, setUser] = useState<ExtendedUser | null>(null);
   const [userRole, setUserRole] = useState<UserRole | null>(null);
   const [loading, setLoading] = useState(true);
   const timeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -24,113 +23,62 @@ export const useAuth = () => {
       }
     }, 10000); // 10 segundos timeout
 
-    // Get initial session
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
-      setUser(session?.user ?? null);
-      if (session?.user) {
-        fetchUserProfile(session.user.id);
-      } else {
-        setLoading(false);
-        isInitializedRef.current = true;
-      }
-    }).catch((error) => {
-      console.error('Error getting initial session:', error);
-      setLoading(false);
-      isInitializedRef.current = true;
-    });
+    // Verificar si hay token y obtener usuario
+    const initAuth = async () => {
+      const token = localStorage.getItem('token');
+      const storedUser = localStorage.getItem('user');
 
-    // Listen for auth changes
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event, session) => {
-        console.log('Auth state change:', event, session?.user?.id);
-        setSession(session);
-        setUser(session?.user ?? null);
-        
-        if (session?.user) {
-          await fetchUserProfile(session.user.id);
-        } else {
-          setProfile(null);
-          setUserRole(null);
-          setLoading(false);
-          isInitializedRef.current = true;
+      if (token && storedUser) {
+        try {
+          const parsedUser = JSON.parse(storedUser) as ExtendedUser;
+          setUser(parsedUser);
+          setUserRole(parsedUser.area);
+          
+          // Verificar que el token siga siendo válido
+          try {
+            await authAPI.getProfile();
+          } catch (error) {
+            // Si el token no es válido, limpiar
+            localStorage.removeItem('token');
+            localStorage.removeItem('user');
+            setUser(null);
+            setUserRole(null);
+          }
+        } catch (error) {
+          console.error('Error parsing user from localStorage:', error);
+          localStorage.removeItem('token');
+          localStorage.removeItem('user');
         }
       }
-    );
+
+      setLoading(false);
+      isInitializedRef.current = true;
+    };
+
+    initAuth();
 
     return () => {
       if (timeoutRef.current) {
         clearTimeout(timeoutRef.current);
       }
-      subscription.unsubscribe();
     };
   }, []);
 
-  const fetchUserProfile = async (userId: string) => {
-    try {
-      // Fetch profile
-      const { data: profileData, error: profileError } = await supabase
-        .from('perfiles')
-        .select('*')
-        .eq('id', userId)
-        .single();
-
-      if (profileError && profileError.code !== 'PGRST116') {
-        console.error('Error fetching profile:', profileError);
-        // Si no hay perfil, crear uno por defecto
-        const { data: user } = await supabase.auth.getUser();
-        if (user.user) {
-          await createUserProfile(user.user);
-        }
-      } else if (profileData) {
-        setProfile(profileData);
-        setUserRole(profileData.area);
-      }
-
-    } catch (error) {
-      console.error('Unexpected error fetching user profile:', error);
-    } finally {
-      setLoading(false);
-      isInitializedRef.current = true;
-    }
-  };
-
-  const createUserProfile = async (user: User) => {
-    try {
-      const fullName = user.user_metadata?.full_name || '';
-      const [nombres, ...apellidosArray] = fullName.split(' ');
-      const apellidos = apellidosArray.join(' ') || '';
-
-      const { data, error } = await supabase
-        .from('perfiles')
-        .insert({
-          id: user.id,
-          nombres: nombres || 'Usuario',
-          apellidos: apellidos || 'Sin Apellido',
-          area: 'CLINICO', // Rol por defecto
-          creado_en: new Date().toISOString(),
-        })
-        .select()
-        .single();
-
-      if (error) {
-        console.error('Error creating profile:', error);
-      } else if (data) {
-        setProfile(data);
-        setUserRole(data.area);
-      }
-    } catch (error) {
-      console.error('Unexpected error creating profile:', error);
-    }
-  };
-
   const signOut = async () => {
-    const { error } = await supabase.auth.signOut();
-    if (error) {
+    try {
+      await authAPI.logout();
+      setUser(null);
+      setUserRole(null);
+      return { error: null };
+    } catch (error) {
       console.error('Error signing out:', error);
+      // Limpiar de todas formas
+      localStorage.removeItem('token');
+      localStorage.removeItem('user');
+      setUser(null);
+      setUserRole(null);
       return { error };
     }
-    return { error: null };
   };
 
   const hasRole = (role: UserRole): boolean => {
@@ -143,8 +91,7 @@ export const useAuth = () => {
 
   return {
     user,
-    session,
-    profile,
+    profile: user, // Compatibility
     userRole,
     loading,
     signOut,

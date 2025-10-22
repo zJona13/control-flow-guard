@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { supabase } from "@/integrations/supabase/client";
+import { citasAPI } from "@/services/api";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -59,75 +59,24 @@ const Contingencia = () => {
     "Dra. Patricia Díaz",
   ];
 
+  const fetchAppointments = async () => {
+    try {
+      const data = await citasAPI.getAll();
+      setAppointments(data);
+    } catch (error) {
+      console.error("Error al obtener citas:", error);
+      toast({
+        title: "Error",
+        description: "No se pudieron cargar las citas",
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
   useEffect(() => {
-    let isMounted = true;
-    let channel: any = null;
-
-    const fetchAppointments = async () => {
-      if (!isMounted) return;
-      
-      try {
-        const { data, error } = await supabase
-          .from("citas_contingencia")
-          .select("*")
-          .order("creado_en", { ascending: false });
-
-        if (!isMounted) return;
-
-        if (error) {
-          console.error("Error fetching appointments:", error);
-          toast({
-            title: "Error de conexión",
-            description: "No se pudieron cargar las citas. Verifique su conexión a internet.",
-            variant: "destructive",
-          });
-          setAppointments([]);
-        } else if (data) {
-          setAppointments(data);
-        }
-      } catch (err) {
-        console.error("Unexpected error:", err);
-        if (isMounted) {
-          toast({
-            title: "Error inesperado",
-            description: "Error inesperado al cargar las citas. Recargue la página.",
-            variant: "destructive",
-          });
-          setAppointments([]);
-        }
-      } finally {
-        if (isMounted) {
-          setLoading(false);
-        }
-      }
-    };
-
     fetchAppointments();
-
-    // Suscribirse a cambios en tiempo real
-    channel = supabase
-      .channel("appointments-changes")
-      .on(
-        "postgres_changes",
-        {
-          event: "*",
-          schema: "public",
-          table: "citas_contingencia",
-        },
-        () => {
-          if (isMounted) {
-            fetchAppointments();
-          }
-        }
-      )
-      .subscribe();
-
-    return () => {
-      isMounted = false;
-      if (channel) {
-        supabase.removeChannel(channel);
-      }
-    };
   }, []);
 
   const handleCreateAppointment = async () => {
@@ -163,44 +112,20 @@ const Contingencia = () => {
 
       setCreating(true);
 
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) {
-        toast({
-          title: "Error de autenticación",
-          description: "No se pudo obtener el usuario actual. Por favor, inicie sesión nuevamente.",
-          variant: "destructive",
-        });
-        return;
-      }
-
       // Crear fecha y hora combinada
       const fechaHora = new Date(`${newAppointment.date}T${newAppointment.time}`);
 
-      const { error } = await supabase.from("citas_contingencia").insert({
+      await citasAPI.create({
         dni: newAppointment.dni,
         nombre_completo: newAppointment.fullName,
         servicio: newAppointment.service,
         medico_asignado: newAppointment.doctor,
         fecha_hora: fechaHora.toISOString(),
-        estado: "PROGRAMADA",
-        creado_por: user.id,
       });
-
-      if (error) {
-        console.error("Database error:", error);
-        toast({
-          title: "Error al registrar cita",
-          description: error.message.includes("duplicate") 
-            ? "Ya existe una cita con este DNI para la fecha seleccionada"
-            : "Error en la base de datos. Intente nuevamente.",
-          variant: "destructive",
-        });
-        return;
-      }
 
       toast({
         title: "Cita registrada exitosamente",
-        description: `Cita programada para ${newAppointment.nombre_completo} el ${fechaHora.toLocaleDateString("es-PE")} a las ${fechaHora.toLocaleTimeString("es-PE", { hour: '2-digit', minute: '2-digit' })}`,
+        description: `Cita programada para ${newAppointment.fullName} el ${fechaHora.toLocaleDateString("es-PE")} a las ${fechaHora.toLocaleTimeString("es-PE", { hour: '2-digit', minute: '2-digit' })}`,
       });
 
       setIsDialogOpen(false);
@@ -212,6 +137,9 @@ const Contingencia = () => {
         date: "",
         time: "",
       });
+
+      // Recargar citas
+      fetchAppointments();
     } catch (err) {
       if (err instanceof z.ZodError) {
         const errorMessage = err.issues[0].message;
@@ -221,10 +149,10 @@ const Contingencia = () => {
           variant: "destructive",
         });
       } else {
-        console.error("Unexpected error:", err);
+        const error = err as any;
         toast({
-          title: "Error inesperado",
-          description: "Ocurrió un error inesperado. Por favor, intente nuevamente.",
+          title: "Error",
+          description: error.response?.data?.error || "Error al crear cita",
           variant: "destructive",
         });
       }
@@ -235,23 +163,7 @@ const Contingencia = () => {
 
   const handleUpdateStatus = async (appointmentId: number, newStatus: string) => {
     try {
-      const { error } = await supabase
-        .from("citas_contingencia")
-        .update({ 
-          estado: newStatus,
-          actualizado_en: new Date().toISOString()
-        })
-        .eq("id", appointmentId);
-
-      if (error) {
-        console.error("Error updating status:", error);
-        toast({
-          title: "Error al actualizar estado",
-          description: "No se pudo actualizar el estado de la cita. Intente nuevamente.",
-          variant: "destructive",
-        });
-        return;
-      }
+      await citasAPI.update(appointmentId, { estado: newStatus });
 
       const statusText = newStatus === "ATENDIDA" ? "atendida" : "cancelada";
       toast({
@@ -259,43 +171,38 @@ const Contingencia = () => {
         description: `La cita ha sido marcada como ${statusText}`,
       });
 
-      // Refresh appointments
-      window.location.reload();
-    } catch (err) {
-      console.error("Error updating status:", err);
+      // Recargar citas
+      fetchAppointments();
+    } catch (error) {
+      console.error("Error al actualizar estado:", error);
       toast({
-        title: "Error inesperado",
-        description: "Error inesperado al actualizar el estado. Recargue la página.",
+        title: "Error",
+        description: "No se pudo actualizar el estado de la cita",
         variant: "destructive",
       });
     }
   };
 
-  const handleExport = () => {
-    const csvContent = [
-      ["ID", "DNI", "Nombre Completo", "Servicio", "Médico", "Fecha y Hora"],
-      ...appointments.map((apt) => [
-        apt.id,
-        apt.dni,
-        apt.nombre_completo,
-        apt.servicio,
-        apt.medico_asignado,
-        new Date(apt.fecha_hora).toLocaleString("es-PE"),
-      ]),
-    ]
-      .map((row) => row.join(","))
-      .join("\n");
+  const handleExport = async () => {
+    try {
+      const blob = await citasAPI.export();
+      const link = document.createElement("a");
+      link.href = URL.createObjectURL(blob);
+      link.download = `citas_contingencia_${new Date().toISOString().split("T")[0]}.csv`;
+      link.click();
 
-    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
-    const link = document.createElement("a");
-    link.href = URL.createObjectURL(blob);
-    link.download = `citas_contingencia_${new Date().toISOString().split("T")[0]}.csv`;
-    link.click();
-
-    toast({
-      title: "Exportación exitosa",
-      description: "Los datos han sido exportados correctamente",
-    });
+      toast({
+        title: "Exportación exitosa",
+        description: "Los datos han sido exportados correctamente",
+      });
+    } catch (error) {
+      console.error("Error al exportar:", error);
+      toast({
+        title: "Error",
+        description: "No se pudieron exportar las citas",
+        variant: "destructive",
+      });
+    }
   };
 
   const getStatusBadgeVariant = (status: string) => {

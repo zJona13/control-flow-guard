@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { supabase } from "@/integrations/supabase/client";
+import { excepcionesAPI } from "@/services/api";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { AlertTriangle, CheckCircle2, Clock, TrendingUp, Loader2 } from "lucide-react";
@@ -15,90 +15,55 @@ interface Exception {
 }
 
 const Dashboard = () => {
-  const [exceptions, setExceptions] = useState<Exception[]>([]);
+  const [estadisticas, setEstadisticas] = useState<{
+    porEstado: Array<{ estado: string; total: number }>;
+    topCategorias: Array<{ categoria: string; frecuencia: number }>;
+    recientes: Exception[];
+    vencidas: number;
+  } | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    let isMounted = true;
-    let channel: any = null;
-
-    const fetchExceptions = async () => {
-      if (!isMounted) return;
-      
+    const fetchEstadisticas = async () => {
       try {
-        const { data, error } = await supabase
-          .from("control_excepciones")
-          .select("*")
-          .order("creado_en", { ascending: false })
-          .limit(10);
-
-        if (!isMounted) return;
-
-        if (error) {
-          console.error("Error fetching exceptions:", error);
-          setExceptions([]);
-        } else if (data) {
-          setExceptions(data);
-        }
-      } catch (err) {
-        console.error("Unexpected error:", err);
-        if (isMounted) {
-          setExceptions([]);
-        }
+        const data = await excepcionesAPI.getEstadisticas();
+        setEstadisticas(data);
+      } catch (error) {
+        console.error("Error al obtener estadísticas:", error);
       } finally {
-        if (isMounted) {
-          setLoading(false);
-        }
+        setLoading(false);
       }
     };
 
-    fetchExceptions();
-
-    // Suscribirse a cambios en tiempo real
-    channel = supabase
-      .channel("dashboard-exceptions")
-      .on(
-        "postgres_changes",
-        {
-          event: "*",
-          schema: "public",
-          table: "control_excepciones",
-        },
-        () => {
-          if (isMounted) {
-            fetchExceptions();
-          }
-        }
-      )
-      .subscribe();
-
-    return () => {
-      isMounted = false;
-      if (channel) {
-        supabase.removeChannel(channel);
-      }
-    };
+    fetchEstadisticas();
   }, []);
 
+  if (loading) {
+    return (
+      <div className="flex min-h-[50vh] items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    );
+  }
+
+  if (!estadisticas) {
+    return (
+      <div className="flex min-h-[50vh] items-center justify-center">
+        <p className="text-muted-foreground">No se pudieron cargar las estadísticas</p>
+      </div>
+    );
+  }
+
   // Calcular estadísticas en tiempo real
-  const openExceptions = exceptions.filter((e) => e.estado === "ABIERTO").length;
-  const closedExceptions = exceptions.filter((e) => e.estado === "CERRADO").length;
-  const inProgressExceptions = exceptions.filter((e) => e.estado === "EN_PROGRESO").length;
+  const porEstadoMap = estadisticas.porEstado.reduce((acc, item) => {
+    acc[item.estado] = item.total;
+    return acc;
+  }, {} as Record<string, number>);
 
-  // Calcular top issues
-  const categoryCount: Record<string, number> = {};
-  exceptions.forEach((exc) => {
-    categoryCount[exc.categoria] = (categoryCount[exc.categoria] || 0) + 1;
-  });
-
-  const topIssues = Object.entries(categoryCount)
-    .map(([category, count]) => ({
-      type: getCategoryLabel(category),
-      count,
-      severity: count > 3 ? "critical" : count > 2 ? "high" : count > 1 ? "medium" : "low",
-    }))
-    .sort((a, b) => b.count - a.count)
-    .slice(0, 5);
+  const openExceptions = porEstadoMap['ABIERTO'] || 0;
+  const closedExceptions = porEstadoMap['CERRADO'] || 0;
+  const inProgressExceptions = porEstadoMap['EN_PROGRESO'] || 0;
+  const totalExceptions = openExceptions + closedExceptions + inProgressExceptions;
 
   const stats = [
     {
@@ -119,7 +84,7 @@ const Dashboard = () => {
     },
     {
       title: "Total Excepciones",
-      value: exceptions.length.toString(),
+      value: totalExceptions.toString(),
       change: "Registradas",
       trend: "up",
       icon: Clock,
@@ -127,7 +92,7 @@ const Dashboard = () => {
     },
     {
       title: "Tasa de Cumplimiento",
-      value: exceptions.length > 0 ? `${Math.round((closedExceptions / exceptions.length) * 100)}%` : "0%",
+      value: totalExceptions > 0 ? `${Math.round((closedExceptions / totalExceptions) * 100)}%` : "0%",
       change: "Del total",
       trend: "up",
       icon: TrendingUp,
@@ -135,7 +100,14 @@ const Dashboard = () => {
     },
   ];
 
-  const recentExceptions = exceptions.slice(0, 3).map((exc) => ({
+  // Top issues con severidad
+  const topIssues = estadisticas.topCategorias.map((item) => ({
+    type: getCategoryLabel(item.categoria),
+    count: item.frecuencia,
+    severity: item.frecuencia > 3 ? "critical" : item.frecuencia > 2 ? "high" : item.frecuencia > 1 ? "medium" : "low",
+  }));
+
+  const recentExceptions = estadisticas.recientes.slice(0, 3).map((exc) => ({
     id: exc.id.toString(),
     description: exc.descripcion,
     status: exc.estado,
@@ -193,14 +165,6 @@ const Dashboard = () => {
         return status;
     }
   };
-
-  if (loading) {
-    return (
-      <div className="flex min-h-[50vh] items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
-      </div>
-    );
-  }
 
   return (
     <div className="space-y-6">

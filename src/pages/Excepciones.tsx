@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { supabase } from "@/integrations/supabase/client";
+import { excepcionesAPI } from "@/services/api";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -41,75 +41,24 @@ const Excepciones = () => {
     categoria: "" as ExceptionCategory,
   });
 
+  const fetchExceptions = async () => {
+    try {
+      const data = await excepcionesAPI.getAll();
+      setExceptions(data as Exception[]);
+    } catch (error) {
+      console.error("Error al obtener excepciones:", error);
+      toast({
+        title: "Error",
+        description: "No se pudieron cargar las excepciones",
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
   useEffect(() => {
-    let isMounted = true;
-    let channel: any = null;
-
-    const fetchExceptions = async () => {
-      if (!isMounted) return;
-      
-      try {
-        const { data, error } = await supabase
-          .from("control_excepciones")
-          .select("*")
-          .order("creado_en", { ascending: false });
-
-        if (!isMounted) return;
-
-        if (error) {
-          console.error("Error fetching exceptions:", error);
-          toast({
-            title: "Error",
-            description: "No se pudieron cargar las excepciones. Verifique la conexión.",
-            variant: "destructive",
-          });
-          setExceptions([]);
-        } else if (data) {
-          setExceptions(data as Exception[]);
-        }
-      } catch (err) {
-        console.error("Unexpected error:", err);
-        if (isMounted) {
-          toast({
-            title: "Error",
-            description: "Error inesperado al cargar las excepciones",
-            variant: "destructive",
-          });
-          setExceptions([]);
-        }
-      } finally {
-        if (isMounted) {
-          setLoading(false);
-        }
-      }
-    };
-
     fetchExceptions();
-
-    // Suscribirse a cambios en tiempo real
-    channel = supabase
-      .channel("exceptions-changes")
-      .on(
-        "postgres_changes",
-        {
-          event: "*",
-          schema: "public",
-          table: "control_excepciones",
-        },
-        () => {
-          if (isMounted) {
-            fetchExceptions();
-          }
-        }
-      )
-      .subscribe();
-
-    return () => {
-      isMounted = false;
-      if (channel) {
-        supabase.removeChannel(channel);
-      }
-    };
   }, []);
 
   const getCategoryLabel = (category: ExceptionCategory) => {
@@ -156,36 +105,10 @@ const Excepciones = () => {
 
       setCreating(true);
 
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) {
-        toast({
-          title: "Error",
-          description: "No se pudo obtener el usuario actual",
-          variant: "destructive",
-        });
-        return;
-      }
-
-      // Calcular fecha actual
-      const today = new Date().toISOString().split("T")[0];
-
-      const { error } = await supabase.from("control_excepciones").insert({
+      await excepcionesAPI.create({
         descripcion: newException.descripcion,
-        fecha: today,
         categoria: newException.categoria,
-        estado: "ABIERTO",
-        creado_por: user.id,
-        fecha_limite: null, // Se calculará automáticamente por el trigger
       });
-
-      if (error) {
-        toast({
-          title: "Error",
-          description: error.message,
-          variant: "destructive",
-        });
-        return;
-      }
 
       toast({
         title: "Excepción creada",
@@ -194,11 +117,21 @@ const Excepciones = () => {
 
       setIsDialogOpen(false);
       setNewException({ descripcion: "", categoria: "" as ExceptionCategory });
+      
+      // Recargar excepciones
+      fetchExceptions();
     } catch (err) {
       if (err instanceof z.ZodError) {
         toast({
           title: "Error de validación",
           description: err.issues[0].message,
+          variant: "destructive",
+        });
+      } else {
+        const error = err as any;
+        toast({
+          title: "Error",
+          description: error.response?.data?.error || "Error al crear excepción",
           variant: "destructive",
         });
       }

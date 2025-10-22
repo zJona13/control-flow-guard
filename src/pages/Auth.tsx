@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { supabase } from "@/integrations/supabase/client";
+import { authAPI } from "@/services/api";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -12,13 +12,8 @@ import { z } from "zod";
 
 const emailSchema = z.string()
   .email("Email inválido")
-  .max(255, "Email demasiado largo")
-  .refine((email) => {
-    // Permitir emails de dominios comunes para desarrollo
-    const allowedDomains = ['gmail.com', 'yahoo.com', 'hotmail.com', 'essalud.gob.pe', 'test.com'];
-    const domain = email.split('@')[1];
-    return allowedDomains.includes(domain);
-  }, "Dominio de email no permitido");
+  .max(255, "Email demasiado largo");
+
 const passwordSchema = z.string().min(6, "La contraseña debe tener al menos 6 caracteres").max(100, "Contraseña demasiado larga");
 
 type UserRole = "ADMIN" | "TI" | "CONTROL_INTERNO" | "ADMISION" | "CLINICO";
@@ -29,17 +24,16 @@ const Auth = () => {
   const [loading, setLoading] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [fullName, setFullName] = useState("");
+  const [nombres, setNombres] = useState("");
+  const [apellidos, setApellidos] = useState("");
   const [role, setRole] = useState<UserRole>("CLINICO");
 
   useEffect(() => {
-    const checkSession = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (session) {
-        navigate("/");
-      }
-    };
-    checkSession();
+    // Verificar si ya hay sesión
+    const token = localStorage.getItem('token');
+    if (token) {
+      navigate("/");
+    }
   }, [navigate]);
 
   const handleSignUp = async (e: React.FormEvent) => {
@@ -51,69 +45,32 @@ const Auth = () => {
       emailSchema.parse(email);
       passwordSchema.parse(password);
       
-      if (!fullName.trim()) {
-        throw new Error("El nombre completo es requerido");
+      if (!nombres.trim() || !apellidos.trim()) {
+        throw new Error("Los nombres y apellidos son requeridos");
       }
 
-      const { data, error } = await supabase.auth.signUp({
+      const response = await authAPI.register({
         email,
         password,
-        options: {
-          data: {
-            full_name: fullName,
-            role: role,
-          },
-        },
+        nombres: nombres.trim(),
+        apellidos: apellidos.trim(),
+        area: role,
       });
 
-      if (error) {
-        if (error.message.includes("already registered")) {
-          toast({
-            title: "Error",
-            description: "Este email ya está registrado. Intente iniciar sesión.",
-            variant: "destructive",
-          });
-        } else {
-          toast({
-            title: "Error",
-            description: error.message,
-            variant: "destructive",
-          });
-        }
-        return;
-      }
+      // Guardar token y usuario
+      localStorage.setItem('token', response.token);
+      localStorage.setItem('user', JSON.stringify(response.user));
 
-      if (data.user) {
-        // Crear perfil del usuario automáticamente
-        try {
-          const [nombres, ...apellidosArray] = fullName.split(' ');
-          const apellidos = apellidosArray.join(' ') || '';
+      toast({
+        title: "Registro exitoso",
+        description: "Su cuenta ha sido creada exitosamente",
+      });
 
-          await supabase.from('perfiles').insert({
-            id: data.user.id,
-            nombres: nombres || 'Usuario',
-            apellidos: apellidos || 'Sin Apellido',
-            area: role,
-            creado_en: new Date().toISOString(),
-          });
-        } catch (profileError) {
-          console.warn('Error creating user profile:', profileError);
-          // Continuar aunque falle la creación del perfil
-        }
-
-        toast({
-          title: "Registro exitoso",
-          description: "Su cuenta ha sido creada. Puede iniciar sesión ahora.",
-        });
-        setIsLogin(true);
-        
-        // Limpiar el formulario
-        setEmail("");
-        setPassword("");
-        setFullName("");
-        setRole("CLINICO");
-      }
+      // Redirigir al dashboard
+      navigate("/");
     } catch (err) {
+      console.error('Error en registro:', err);
+      
       if (err instanceof z.ZodError) {
         toast({
           title: "Error de validación",
@@ -124,6 +81,13 @@ const Auth = () => {
         toast({
           title: "Error",
           description: err.message,
+          variant: "destructive",
+        });
+      } else if (typeof err === 'object' && err !== null && 'response' in err) {
+        const error = err as any;
+        toast({
+          title: "Error al registrar",
+          description: error.response?.data?.error || "Error al registrar usuario",
           variant: "destructive",
         });
       }
@@ -141,58 +105,41 @@ const Auth = () => {
       emailSchema.parse(email);
       passwordSchema.parse(password);
 
-      const { data, error } = await supabase.auth.signInWithPassword({
-        email,
-        password,
-      });
+      const response = await authAPI.login(email, password);
 
-      if (error) {
-        console.error("Login error:", error);
-        
-        // Manejar diferentes tipos de errores
-        if (error.message.includes("Invalid login credentials")) {
-          toast({
-            title: "Error de autenticación",
-            description: "Email o contraseña incorrectos",
-            variant: "destructive",
-          });
-        } else if (error.message.includes("Email not confirmed")) {
-          toast({
-            title: "Email no confirmado",
-            description: "Por favor confirma tu email antes de iniciar sesión",
-            variant: "destructive",
-          });
-        } else if (error.message.includes("Too many requests")) {
-          toast({
-            title: "Demasiados intentos",
-            description: "Espera unos minutos antes de intentar nuevamente",
-            variant: "destructive",
-          });
-        } else {
-          toast({
-            title: "Error de autenticación",
-            description: `Error: ${error.message}`,
-            variant: "destructive",
-          });
-        }
-        return;
-      }
-
-      // Verificar que el usuario se autenticó correctamente
-      if (data.user) {
-        console.log("User authenticated:", data.user);
-      }
+      // Guardar token y usuario
+      localStorage.setItem('token', response.token);
+      localStorage.setItem('user', JSON.stringify(response.user));
 
       toast({
         title: "Inicio de sesión exitoso",
-        description: "Bienvenido al sistema",
+        description: `Bienvenido ${response.user.nombres}`,
       });
+
+      // Redirigir al dashboard
       navigate("/");
     } catch (err) {
+      console.error('Error en login:', err);
+      
       if (err instanceof z.ZodError) {
         toast({
           title: "Error de validación",
           description: err.issues[0].message,
+          variant: "destructive",
+        });
+      } else if (typeof err === 'object' && err !== null && 'response' in err) {
+        const error = err as any;
+        const errorMessage = error.response?.data?.error || "Error al iniciar sesión";
+        
+        toast({
+          title: "Error de autenticación",
+          description: errorMessage,
+          variant: "destructive",
+        });
+      } else {
+        toast({
+          title: "Error",
+          description: "Error inesperado al iniciar sesión",
           variant: "destructive",
         });
       }
@@ -218,17 +165,30 @@ const Auth = () => {
         <CardContent>
           <form onSubmit={isLogin ? handleSignIn : handleSignUp} className="space-y-4">
             {!isLogin && (
-              <div className="space-y-2">
-                <Label htmlFor="fullName">Nombre Completo</Label>
-                <Input
-                  id="fullName"
-                  placeholder="Juan Pérez García"
-                  value={fullName}
-                  onChange={(e) => setFullName(e.target.value)}
-                  required
-                  disabled={loading}
-                />
-              </div>
+              <>
+                <div className="space-y-2">
+                  <Label htmlFor="nombres">Nombres</Label>
+                  <Input
+                    id="nombres"
+                    placeholder="Juan"
+                    value={nombres}
+                    onChange={(e) => setNombres(e.target.value)}
+                    required
+                    disabled={loading}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="apellidos">Apellidos</Label>
+                  <Input
+                    id="apellidos"
+                    placeholder="Pérez García"
+                    value={apellidos}
+                    onChange={(e) => setApellidos(e.target.value)}
+                    required
+                    disabled={loading}
+                  />
+                </div>
+              </>
             )}
             <div className="space-y-2">
               <Label htmlFor="email">Email</Label>
@@ -279,7 +239,14 @@ const Auth = () => {
           <div className="mt-4 text-center text-sm">
             <button
               type="button"
-              onClick={() => setIsLogin(!isLogin)}
+              onClick={() => {
+                setIsLogin(!isLogin);
+                setEmail("");
+                setPassword("");
+                setNombres("");
+                setApellidos("");
+                setRole("CLINICO");
+              }}
               className="text-primary hover:underline"
               disabled={loading}
             >
