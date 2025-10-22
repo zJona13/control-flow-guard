@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { AlertCircle, Calendar, Download, Plus, User, Loader2 } from "lucide-react";
+import { AlertCircle, Calendar, Download, Plus, User, Loader2, CheckCircle, XCircle } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { z } from "zod";
 
@@ -93,8 +93,8 @@ const Contingencia = () => {
       if (error) {
         console.error("Error fetching appointments:", error);
         toast({
-          title: "Error",
-          description: "No se pudieron cargar las citas. Verifique la conexión.",
+          title: "Error de conexión",
+          description: "No se pudieron cargar las citas. Verifique su conexión a internet.",
           variant: "destructive",
         });
         setAppointments([]);
@@ -104,8 +104,8 @@ const Contingencia = () => {
     } catch (err) {
       console.error("Unexpected error:", err);
       toast({
-        title: "Error",
-        description: "Error inesperado al cargar las citas",
+        title: "Error inesperado",
+        description: "Error inesperado al cargar las citas. Recargue la página.",
         variant: "destructive",
       });
       setAppointments([]);
@@ -116,13 +116,30 @@ const Contingencia = () => {
 
   const handleCreateAppointment = async () => {
     try {
+      // Validate DNI
       dniSchema.parse(newAppointment.dni);
+
+      // Validate name
       nameSchema.parse(newAppointment.fullName);
 
+      // Validate required fields
       if (!newAppointment.service || !newAppointment.doctor || !newAppointment.time || !newAppointment.date) {
         toast({
           title: "Error",
-          description: "Por favor complete todos los campos",
+          description: "Por favor complete todos los campos requeridos",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      // Validate date is not in the past
+      const selectedDate = new Date(`${newAppointment.date}T${newAppointment.time}`);
+      const now = new Date();
+      
+      if (selectedDate < now) {
+        toast({
+          title: "Error",
+          description: "No se pueden programar citas en fechas pasadas",
           variant: "destructive",
         });
         return;
@@ -133,8 +150,8 @@ const Contingencia = () => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) {
         toast({
-          title: "Error",
-          description: "No se pudo obtener el usuario actual",
+          title: "Error de autenticación",
+          description: "No se pudo obtener el usuario actual. Por favor, inicie sesión nuevamente.",
           variant: "destructive",
         });
         return;
@@ -154,17 +171,20 @@ const Contingencia = () => {
       });
 
       if (error) {
+        console.error("Database error:", error);
         toast({
-          title: "Error",
-          description: error.message,
+          title: "Error al registrar cita",
+          description: error.message.includes("duplicate") 
+            ? "Ya existe una cita con este DNI para la fecha seleccionada"
+            : "Error en la base de datos. Intente nuevamente.",
           variant: "destructive",
         });
         return;
       }
 
       toast({
-        title: "Cita registrada",
-        description: "Cita registrada exitosamente",
+        title: "Cita registrada exitosamente",
+        description: `Cita programada para ${newAppointment.nombre_completo} el ${fechaHora.toLocaleDateString("es-PE")} a las ${fechaHora.toLocaleTimeString("es-PE", { hour: '2-digit', minute: '2-digit' })}`,
       });
 
       setIsDialogOpen(false);
@@ -178,14 +198,60 @@ const Contingencia = () => {
       });
     } catch (err) {
       if (err instanceof z.ZodError) {
+        const errorMessage = err.issues[0].message;
         toast({
           title: "Error de validación",
-          description: err.issues[0].message,
+          description: errorMessage,
+          variant: "destructive",
+        });
+      } else {
+        console.error("Unexpected error:", err);
+        toast({
+          title: "Error inesperado",
+          description: "Ocurrió un error inesperado. Por favor, intente nuevamente.",
           variant: "destructive",
         });
       }
     } finally {
       setCreating(false);
+    }
+  };
+
+  const handleUpdateStatus = async (appointmentId: number, newStatus: string) => {
+    try {
+      const { error } = await supabase
+        .from("citas_contingencia")
+        .update({ 
+          estado: newStatus,
+          actualizado_en: new Date().toISOString()
+        })
+        .eq("id", appointmentId);
+
+      if (error) {
+        console.error("Error updating status:", error);
+        toast({
+          title: "Error al actualizar estado",
+          description: "No se pudo actualizar el estado de la cita. Intente nuevamente.",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      const statusText = newStatus === "ATENDIDA" ? "atendida" : "cancelada";
+      toast({
+        title: "Estado actualizado",
+        description: `La cita ha sido marcada como ${statusText}`,
+      });
+
+      // Refresh appointments
+      fetchAppointments();
+    } catch (err) {
+      console.error("Error updating status:", err);
+      toast({
+        title: "Error inesperado",
+        description: "Error inesperado al actualizar el estado. Recargue la página.",
+        variant: "destructive",
+      });
     }
   };
 
@@ -214,6 +280,32 @@ const Contingencia = () => {
       title: "Exportación exitosa",
       description: "Los datos han sido exportados correctamente",
     });
+  };
+
+  const getStatusBadgeVariant = (status: string) => {
+    switch (status) {
+      case "PROGRAMADA":
+        return "default";
+      case "ATENDIDA":
+        return "secondary";
+      case "CANCELADA":
+        return "destructive";
+      default:
+        return "outline";
+    }
+  };
+
+  const getStatusBadgeText = (status: string) => {
+    switch (status) {
+      case "PROGRAMADA":
+        return "Programada";
+      case "ATENDIDA":
+        return "Atendida";
+      case "CANCELADA":
+        return "Cancelada";
+      default:
+        return status;
+    }
   };
 
   const todayAppointments = appointments.filter(
@@ -272,9 +364,10 @@ const Contingencia = () => {
                     id="dni"
                     placeholder="12345678"
                     value={newAppointment.dni}
-                    onChange={(e) => setNewAppointment({ ...newAppointment, dni: e.target.value })}
+                    onChange={(e) => setNewAppointment({ ...newAppointment, dni: e.target.value.replace(/\D/g, '') })}
                     disabled={creating}
                     maxLength={8}
+                    pattern="[0-9]{8}"
                   />
                 </div>
                 <div className="space-y-2">
@@ -297,6 +390,7 @@ const Contingencia = () => {
                     value={newAppointment.date}
                     onChange={(e) => setNewAppointment({ ...newAppointment, date: e.target.value })}
                     disabled={creating}
+                    min={new Date().toISOString().split('T')[0]}
                   />
                 </div>
                 <div className="space-y-2">
@@ -350,16 +444,6 @@ const Contingencia = () => {
                   </Select>
                 </div>
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="time">Hora de Cita</Label>
-                <Input
-                  id="time"
-                  type="time"
-                  value={newAppointment.time}
-                  onChange={(e) => setNewAppointment({ ...newAppointment, time: e.target.value })}
-                  disabled={creating}
-                />
-              </div>
               <Button onClick={handleCreateAppointment} className="w-full" disabled={creating}>
                 {creating && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                 Registrar Cita
@@ -396,14 +480,39 @@ const Contingencia = () => {
                       <div className="flex items-center gap-2">
                         <p className="font-medium text-foreground">{appointment.nombre_completo}</p>
                         <Badge variant="outline">DNI: {appointment.dni}</Badge>
+                        <Badge variant={getStatusBadgeVariant(appointment.estado)}>
+                          {getStatusBadgeText(appointment.estado)}
+                        </Badge>
                       </div>
                       <p className="text-sm text-muted-foreground">{appointment.servicio}</p>
                       <p className="text-sm text-muted-foreground">{appointment.medico_asignado}</p>
                     </div>
                   </div>
-                  <div className="text-right">
-                    <Badge className="text-base">{new Date(appointment.fecha_hora).toLocaleTimeString("es-PE", { hour: '2-digit', minute: '2-digit' })}</Badge>
-                    <p className="text-xs text-muted-foreground mt-1">#{appointment.id}</p>
+                  <div className="flex items-center gap-2">
+                    <div className="text-right">
+                      <Badge className="text-base">{new Date(appointment.fecha_hora).toLocaleTimeString("es-PE", { hour: '2-digit', minute: '2-digit' })}</Badge>
+                      <p className="text-xs text-muted-foreground mt-1">#{appointment.id}</p>
+                    </div>
+                    {appointment.estado === "PROGRAMADA" && (
+                      <div className="flex gap-1">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => handleUpdateStatus(appointment.id, "ATENDIDA")}
+                          className="h-8 w-8 p-0"
+                        >
+                          <CheckCircle className="h-4 w-4 text-green-600" />
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => handleUpdateStatus(appointment.id, "CANCELADA")}
+                          className="h-8 w-8 p-0"
+                        >
+                          <XCircle className="h-4 w-4 text-red-600" />
+                        </Button>
+                      </div>
+                    )}
                   </div>
                 </div>
               ))
@@ -427,7 +536,12 @@ const Contingencia = () => {
                   <div className="flex items-center gap-3">
                     <Badge variant="outline">#{appointment.id}</Badge>
                     <div>
-                      <p className="text-sm font-medium text-foreground">{appointment.nombre_completo}</p>
+                      <div className="flex items-center gap-2">
+                        <p className="text-sm font-medium text-foreground">{appointment.nombre_completo}</p>
+                        <Badge variant={getStatusBadgeVariant(appointment.estado)}>
+                          {getStatusBadgeText(appointment.estado)}
+                        </Badge>
+                      </div>
                       <p className="text-xs text-muted-foreground">
                         {appointment.servicio} - {appointment.medico_asignado}
                       </p>
