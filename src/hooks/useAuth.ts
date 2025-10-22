@@ -1,14 +1,10 @@
 import { useState, useEffect, useRef } from 'react';
 import { authAPI, User } from '@/services/api';
 
-type UserRole = 'ADMIN' | 'TI' | 'CONTROL_INTERNO' | 'ADMISION' | 'CLINICO';
-
-interface ExtendedUser extends User {
-  area: UserRole;
-}
+type UserRole = 'ADMIN' | 'TI' | 'CLINICO';
 
 export const useAuth = () => {
-  const [user, setUser] = useState<ExtendedUser | null>(null);
+  const [user, setUser] = useState<User | null>(null);
   const [userRole, setUserRole] = useState<UserRole | null>(null);
   const [loading, setLoading] = useState(true);
   const timeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -30,7 +26,7 @@ export const useAuth = () => {
 
       if (token && storedUser) {
         try {
-          const parsedUser = JSON.parse(storedUser) as ExtendedUser;
+          const parsedUser = JSON.parse(storedUser) as User;
           setUser(parsedUser);
           setUserRole(parsedUser.area);
           

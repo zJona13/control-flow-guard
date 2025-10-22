@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { excepcionesAPI } from "@/services/api";
+import { excepcionesAPI, User } from "@/services/api";
 import { useAuth } from "@/hooks/useAuth";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";

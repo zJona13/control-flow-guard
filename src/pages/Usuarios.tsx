@@ -40,8 +40,8 @@ const Usuarios = () => {
 
   const fetchUsers = async () => {
     try {
-      const users = await authAPI.getUsers();
-      setUsers(users);
+      const data = await authAPI.getUsers();
+      setUsers(data as UserWithId[]);
     } catch (error) {
       console.error("Error al obtener usuarios:", error);
       toast({

@@ -1,10 +1,11 @@
 import { ReactNode } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { cn } from "@/lib/utils";
-import { LayoutDashboard, AlertTriangle, Calendar, LogOut, Users } from "lucide-react";
+import { LayoutDashboard, AlertTriangle, Calendar, LogOut, Users, Moon, Sun } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { toast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
+import { useTheme } from "next-themes";
 
 interface LayoutProps {
   children: ReactNode;
@@ -14,6 +15,7 @@ const Layout = ({ children }: LayoutProps) => {
   const location = useLocation();
   const navigate = useNavigate();
   const { user, profile, userRole, signOut } = useAuth();
+  const { theme, setTheme } = useTheme();
 
   const handleLogout = async () => {
     const { error } = await signOut();
@@ -95,6 +97,18 @@ const Layout = ({ children }: LayoutProps) => {
                 {userRoleLabel}
               </p>
             </div>
+            <Button 
+              variant="ghost" 
+              size="sm" 
+              onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
+              className="gap-2"
+            >
+              {theme === "dark" ? (
+                <Sun className="h-4 w-4" />
+              ) : (
+                <Moon className="h-4 w-4" />
+              )}
+            </Button>
             <Button variant="outline" size="sm" onClick={handleLogout} className="gap-2">
               <LogOut className="h-4 w-4" />
               Cerrar Sesión

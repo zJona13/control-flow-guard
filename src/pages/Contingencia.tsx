@@ -467,7 +467,6 @@ const Contingencia = () => {
       
       await citasAPI.update(editingAppointment.id, {
         estado: editingAppointment.estado,
-        fecha_hora: fechaHoraFormatted,
       });
       
       toast({
@@ -866,7 +865,7 @@ const Contingencia = () => {
                   id="dni"
                   placeholder="12345678"
                   value={newAppointment.dni}
-                  onChange={(e) => setNewAppointment({ ...newAppointment, dni: e.target.value.replaceAll(/\D/g, '') })}
+                  onChange={(e) => setNewAppointment({ ...newAppointment, dni: e.target.value.replace(/\D/g, '') })}
                   disabled={creating}
                   maxLength={8}
                   pattern="[0-9]{8}"

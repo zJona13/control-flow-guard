@@ -4,7 +4,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { AlertTriangle, CheckCircle2, Clock, TrendingUp, Loader2, Calendar, Users } from "lucide-react";
+import { AlertTriangle, CheckCircle2, Clock, TrendingUp, Loader2, Calendar, Users, Activity, Plus } from "lucide-react";
 import { Link } from "react-router-dom";
 
 interface Exception {
