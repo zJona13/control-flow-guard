@@ -20,6 +20,11 @@ export const register = async (req, res) => {
 
     const { email, password, nombres, apellidos, area } = req.body;
 
+    // Validar que el área sea válida
+    if (!['ADMIN', 'TI', 'CLINICO'].includes(area)) {
+      return res.status(400).json({ error: 'Área inválida' });
+    }
+
     // Verificar si el usuario ya existe
     const [existingUsers] = await pool.query(
       'SELECT id FROM usuarios WHERE email = ?',
@@ -34,16 +39,16 @@ export const register = async (req, res) => {
     const salt = await bcrypt.genSalt(10);
     const passwordHash = await bcrypt.hash(password, salt);
 
-    // Insertar usuario
-    const [result] = await pool.query(
+    // Insertar usuario (el trigger asignará automáticamente el UUID)
+    await pool.query(
       'INSERT INTO usuarios (email, password_hash, nombres, apellidos, area) VALUES (?, ?, ?, ?, ?)',
       [email, passwordHash, nombres, apellidos, area]
     );
 
-    // Obtener el usuario creado
+    // Obtener el usuario creado usando el email
     const [users] = await pool.query(
-      'SELECT id, email, nombres, apellidos, area, creado_en FROM usuarios WHERE id = ?',
-      [result.insertId]
+      'SELECT id, email, nombres, apellidos, area, creado_en FROM usuarios WHERE email = ?',
+      [email]
     );
 
     const user = users[0];
@@ -153,5 +158,158 @@ export const logout = async (req, res) => {
   res.json({ message: 'Sesión cerrada exitosamente' });
 };
 
-export default { register, login, getProfile, logout };
+// Obtener todos los usuarios (solo ADMIN)
+export const getUsers = async (req, res) => {
+  try {
+    const userRole = req.user.area;
+
+    // Verificar permisos - solo ADMIN puede ver usuarios
+    if (userRole !== 'ADMIN') {
+      return res.status(403).json({ error: 'No tiene permisos para ver usuarios' });
+    }
+
+    const [users] = await pool.query(`
+      SELECT 
+        id,
+        email,
+        nombres,
+        apellidos,
+        area,
+        activo,
+        creado_en
+      FROM usuarios 
+      ORDER BY creado_en DESC
+    `);
+
+    res.json(users);
+  } catch (error) {
+    console.error('Error al obtener usuarios:', error);
+    res.status(500).json({ error: 'Error al obtener usuarios' });
+  }
+};
+
+// Actualizar usuario (solo ADMIN)
+export const updateUser = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { nombres, apellidos, area, activo } = req.body;
+    const userRole = req.user.area;
+
+    // Verificar permisos - solo ADMIN puede actualizar usuarios
+    if (userRole !== 'ADMIN') {
+      return res.status(403).json({ error: 'No tiene permisos para actualizar usuarios' });
+    }
+
+    // Verificar que el usuario existe
+    const [users] = await pool.query(
+      'SELECT id FROM usuarios WHERE id = ?',
+      [id]
+    );
+
+    if (users.length === 0) {
+      return res.status(404).json({ error: 'Usuario no encontrado' });
+    }
+
+    // Validar área si se proporciona
+    if (area && !['ADMIN', 'TI', 'CLINICO'].includes(area)) {
+      return res.status(400).json({ error: 'Área inválida' });
+    }
+
+    // Construir la consulta de actualización dinámicamente
+    let updateFields = [];
+    let updateValues = [];
+
+    if (nombres !== undefined) {
+      updateFields.push('nombres = ?');
+      updateValues.push(nombres);
+    }
+
+    if (apellidos !== undefined) {
+      updateFields.push('apellidos = ?');
+      updateValues.push(apellidos);
+    }
+
+    if (area !== undefined) {
+      updateFields.push('area = ?');
+      updateValues.push(area);
+    }
+
+    if (activo !== undefined) {
+      updateFields.push('activo = ?');
+      updateValues.push(activo ? 1 : 0);
+    }
+
+    if (updateFields.length === 0) {
+      return res.status(400).json({ error: 'No se proporcionaron campos para actualizar' });
+    }
+
+    updateValues.push(id);
+
+    await pool.query(
+      `UPDATE usuarios SET ${updateFields.join(', ')} WHERE id = ?`,
+      updateValues
+    );
+
+    // Obtener el usuario actualizado
+    const [updatedUsers] = await pool.query(
+      'SELECT id, email, nombres, apellidos, area, activo, creado_en FROM usuarios WHERE id = ?',
+      [id]
+    );
+
+    res.json({
+      message: 'Usuario actualizado exitosamente',
+      user: updatedUsers[0]
+    });
+  } catch (error) {
+    console.error('Error al actualizar usuario:', error);
+    res.status(500).json({ error: 'Error al actualizar usuario' });
+  }
+};
+
+// Desactivar/Activar usuario (solo ADMIN)
+export const toggleUserStatus = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const userRole = req.user.area;
+
+    // Verificar permisos - solo ADMIN puede cambiar estado de usuarios
+    if (userRole !== 'ADMIN') {
+      return res.status(403).json({ error: 'No tiene permisos para cambiar estado de usuarios' });
+    }
+
+    // Verificar que el usuario existe
+    const [users] = await pool.query(
+      'SELECT id, activo FROM usuarios WHERE id = ?',
+      [id]
+    );
+
+    if (users.length === 0) {
+      return res.status(404).json({ error: 'Usuario no encontrado' });
+    }
+
+    const currentStatus = users[0].activo;
+    const newStatus = currentStatus ? 0 : 1;
+
+    await pool.query(
+      'UPDATE usuarios SET activo = ? WHERE id = ?',
+      [newStatus, id]
+    );
+
+    // Obtener el usuario actualizado
+    const [updatedUsers] = await pool.query(
+      'SELECT id, email, nombres, apellidos, area, activo, creado_en FROM usuarios WHERE id = ?',
+      [id]
+    );
+
+    res.json({
+      message: `Usuario ${newStatus ? 'activado' : 'desactivado'} exitosamente`,
+      user: updatedUsers[0]
+    });
+  } catch (error) {
+    console.error('Error al cambiar estado del usuario:', error);
+    res.status(500).json({ error: 'Error al cambiar estado del usuario' });
+  }
+};
+
+export default { register, login, getProfile, logout, getUsers, updateUser, toggleUserStatus };
 

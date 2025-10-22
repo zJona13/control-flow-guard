@@ -11,8 +11,8 @@ export const getExcepciones = async (req, res) => {
     let queryParams = [];
 
     // Filtro RLS según rol
-    if (!['TI', 'CONTROL_INTERNO', 'ADMIN'].includes(userRole)) {
-      // Si no es TI, CONTROL_INTERNO o ADMIN, solo puede ver sus propias excepciones
+    if (!['TI', 'ADMIN'].includes(userRole)) {
+      // Si no es TI o ADMIN, solo puede ver sus propias excepciones
       query += ' WHERE creado_por = ? OR responsable_id = ?';
       queryParams = [userId, userId];
     }
@@ -39,7 +39,7 @@ export const createExcepcion = async (req, res) => {
     const creadoPor = req.user.id;
 
     // Verificar permisos
-    if (!['TI', 'CONTROL_INTERNO', 'ADMIN'].includes(req.user.area)) {
+    if (!['TI', 'ADMIN', 'CLINICO'].includes(req.user.area)) {
       return res.status(403).json({ error: 'No tiene permisos para crear excepciones' });
     }
 
@@ -88,7 +88,7 @@ export const updateExcepcion = async (req, res) => {
 
     // Verificar permisos (RLS)
     const canUpdate = 
-      ['TI', 'CONTROL_INTERNO', 'ADMIN'].includes(userRole) ||
+      ['TI', 'ADMIN'].includes(userRole) ||
       excepcion.responsable_id === userId;
 
     if (!canUpdate) {
@@ -151,7 +151,7 @@ export const getEstadisticas = async (req, res) => {
     const userId = req.user.id;
 
     // Verificar permisos
-    if (!['TI', 'CONTROL_INTERNO', 'ADMIN'].includes(userRole)) {
+    if (!['TI', 'ADMIN', 'CLINICO'].includes(userRole)) {
       return res.status(403).json({ error: 'No tiene permisos para ver estadísticas' });
     }
 
@@ -205,5 +205,112 @@ export const getEstadisticas = async (req, res) => {
   }
 };
 
-export default { getExcepciones, createExcepcion, updateExcepcion, getEstadisticas };
+// Obtener usuarios de TI para asignación
+export const getTiUsers = async (req, res) => {
+  try {
+    const userRole = req.user.area;
+
+    // Solo ADMIN puede asignar usuarios de TI
+    if (userRole !== 'ADMIN') {
+      return res.status(403).json({ error: 'Solo los administradores pueden asignar usuarios de TI' });
+    }
+
+    const [users] = await pool.query(
+      'SELECT id, nombres, apellidos, email FROM usuarios WHERE area = "TI" AND activo = 1 ORDER BY nombres, apellidos'
+    );
+
+    res.json(users);
+  } catch (error) {
+    console.error('Error al obtener usuarios de TI:', error);
+    res.status(500).json({ error: 'Error al obtener usuarios de TI' });
+  }
+};
+
+// Asignar responsable y fecha límite a una excepción
+export const assignResponsable = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { responsable_id, fecha_limite } = req.body;
+    const userId = req.user.id;
+    const userRole = req.user.area;
+
+    // Solo ADMIN puede asignar responsables
+    if (userRole !== 'ADMIN') {
+      return res.status(403).json({ error: 'Solo los administradores pueden asignar responsables' });
+    }
+
+    // Verificar que la excepción existe
+    const [excepciones] = await pool.query(
+      'SELECT * FROM control_excepciones WHERE id = ?',
+      [id]
+    );
+
+    if (excepciones.length === 0) {
+      return res.status(404).json({ error: 'Excepción no encontrada' });
+    }
+
+    // Verificar que el responsable existe y es de TI
+    if (responsable_id) {
+      const [responsables] = await pool.query(
+        'SELECT id FROM usuarios WHERE id = ? AND area = "TI" AND activo = 1',
+        [responsable_id]
+      );
+
+      if (responsables.length === 0) {
+        return res.status(400).json({ error: 'Usuario de TI no válido' });
+      }
+    }
+
+    // Actualizar responsable y fecha límite
+    const updates = [];
+    const params = [];
+
+    if (responsable_id) {
+      updates.push('responsable_id = ?');
+      params.push(responsable_id);
+    }
+
+    if (fecha_limite) {
+      updates.push('fecha_limite = ?');
+      params.push(fecha_limite);
+    }
+
+    if (updates.length === 0) {
+      return res.status(400).json({ error: 'No hay campos para actualizar' });
+    }
+
+    params.push(id);
+
+    await pool.query(
+      `UPDATE control_excepciones SET ${updates.join(', ')} WHERE id = ?`,
+      params
+    );
+
+    // Registrar la acción
+    const actionDetail = [];
+    if (responsable_id) actionDetail.push('responsable asignado');
+    if (fecha_limite) actionDetail.push('fecha límite establecida');
+    
+    await pool.query(
+      'INSERT INTO excepcion_acciones (excepcion_id, autor_id, detalle) VALUES (?, ?, ?)',
+      [id, userId, `Asignación: ${actionDetail.join(', ')}`]
+    );
+
+    // Obtener la excepción actualizada
+    const [updatedExcepciones] = await pool.query(
+      'SELECT * FROM control_excepciones WHERE id = ?',
+      [id]
+    );
+
+    res.json({
+      message: 'Asignación realizada exitosamente',
+      excepcion: updatedExcepciones[0]
+    });
+  } catch (error) {
+    console.error('Error al asignar responsable:', error);
+    res.status(500).json({ error: 'Error al asignar responsable' });
+  }
+};
+
+export default { getExcepciones, createExcepcion, updateExcepcion, getEstadisticas, getTiUsers, assignResponsable };
 

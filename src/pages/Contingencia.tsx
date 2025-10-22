@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo } from "react";
 import { citasAPI } from "@/services/api";
+import { useAuth } from "@/hooks/useAuth";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -9,7 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar as CalendarComponent } from "@/components/ui/calendar";
-import { AlertCircle, Calendar, Download, Plus, Loader2, CheckCircle, XCircle, Clock } from "lucide-react";
+import { AlertCircle, Calendar, Download, Plus, Loader2, CheckCircle, XCircle, Clock, Edit, Eye } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { z } from "zod";
 
@@ -189,12 +190,23 @@ const DayCell = ({
 };
 
 const Contingencia = () => {
+  const { user } = useAuth();
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(undefined);
   const [calendarMonth, setCalendarMonth] = useState<Date>(new Date());
+  
+  // Estados para el modal de fecha
+  const [isDateModalOpen, setIsDateModalOpen] = useState(false);
+  const [selectedDateForModal, setSelectedDateForModal] = useState<Date | undefined>(undefined);
+  
+  // Estados para editar cita
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+  const [editingAppointment, setEditingAppointment] = useState<Appointment | null>(null);
+  const [editing, setEditing] = useState(false);
+  
   const [newAppointment, setNewAppointment] = useState({
     dni: "",
     fullName: "",
@@ -407,30 +419,76 @@ const Contingencia = () => {
 
   // Helper function to handle date click on calendar
   const handleDateClick = (date: Date) => {
-    const dateAppointments = getAppointmentsForDate(date);
-    
-    if (dateAppointments.length === 0) {
-      // No appointments on this date - open create dialog with pre-filled date
-      const formattedDate = date.toISOString().split('T')[0];
-      setNewAppointment({
-        dni: "",
-        fullName: "",
-        service: "",
-        doctor: "",
-        date: formattedDate,
-        time: "",
-      });
-      setIsDialogOpen(true);
-      setSelectedDate(date);
-    } else {
-      // Has appointments - will be handled by popover
-      setSelectedDate(date);
-    }
+    setSelectedDateForModal(date);
+    setIsDateModalOpen(true);
   };
 
   // Helper function to check if a date has appointments
   const hasAppointments = (date: Date): boolean => {
     return getAppointmentsForDate(date).length > 0;
+  };
+
+  // Función para crear cita desde el modal de fecha
+  const handleCreateAppointmentFromDate = () => {
+    if (!selectedDateForModal) return;
+    
+    const formattedDate = selectedDateForModal.toISOString().split('T')[0];
+    setNewAppointment({
+      dni: "",
+      fullName: "",
+      service: "",
+      doctor: "",
+      date: formattedDate,
+      time: "",
+    });
+    setIsDateModalOpen(false);
+    setIsDialogOpen(true);
+  };
+
+  // Función para editar cita
+  const handleEditAppointment = (appointment: Appointment) => {
+    setEditingAppointment(appointment);
+    setIsEditDialogOpen(true);
+  };
+
+  // Función para actualizar cita
+  const handleUpdateAppointment = async () => {
+    if (!editingAppointment) return;
+
+    try {
+      setEditing(true);
+      
+      // Convertir fecha ISO a formato MySQL (YYYY-MM-DD HH:MM:SS)
+      const fechaHoraFormatted = new Date(editingAppointment.fecha_hora)
+        .toISOString()
+        .replace('T', ' ')
+        .replace('Z', '')
+        .slice(0, 19);
+      
+      await citasAPI.update(editingAppointment.id, {
+        estado: editingAppointment.estado,
+        fecha_hora: fechaHoraFormatted,
+      });
+      
+      toast({
+        title: "Éxito",
+        description: "Cita actualizada correctamente",
+        variant: "default",
+      });
+
+      setIsEditDialogOpen(false);
+      setEditingAppointment(null);
+      fetchAppointments(); // Recargar la lista
+    } catch (error) {
+      console.error("Error al actualizar cita:", error);
+      toast({
+        title: "Error",
+        description: "No se pudo actualizar la cita",
+        variant: "destructive",
+      });
+    } finally {
+      setEditing(false);
+    }
   };
 
   // Memoize calendar components to avoid linter warnings
@@ -480,113 +538,6 @@ const Contingencia = () => {
       </Card>
 
       <div className="flex gap-4">
-        <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-          <DialogTrigger asChild>
-            <Button className="gap-2">
-              <Plus className="h-4 w-4" />
-              Registrar Cita de Contingencia
-            </Button>
-          </DialogTrigger>
-          <DialogContent className="max-w-2xl">
-            <DialogHeader>
-              <DialogTitle>Nueva Cita de Contingencia</DialogTitle>
-              <DialogDescription>Registre los datos esenciales del paciente y la cita</DialogDescription>
-            </DialogHeader>
-            <div className="grid gap-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="dni">DNI</Label>
-                  <Input
-                    id="dni"
-                    placeholder="12345678"
-                    value={newAppointment.dni}
-                    onChange={(e) => setNewAppointment({ ...newAppointment, dni: e.target.value.replaceAll(/\D/g, '') })}
-                    disabled={creating}
-                    maxLength={8}
-                    pattern="[0-9]{8}"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="fullName">Nombre Completo</Label>
-                  <Input
-                    id="fullName"
-                    placeholder="Nombres y apellidos"
-                    value={newAppointment.fullName}
-                    onChange={(e) => setNewAppointment({ ...newAppointment, fullName: e.target.value })}
-                    disabled={creating}
-                  />
-                </div>
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="date">Fecha</Label>
-                  <Input
-                    id="date"
-                    type="date"
-                    value={newAppointment.date}
-                    onChange={(e) => setNewAppointment({ ...newAppointment, date: e.target.value })}
-                    disabled={creating}
-                    min={new Date().toISOString().split('T')[0]}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="time">Hora</Label>
-                  <Input
-                    id="time"
-                    type="time"
-                    value={newAppointment.time}
-                    onChange={(e) => setNewAppointment({ ...newAppointment, time: e.target.value })}
-                    disabled={creating}
-                  />
-                </div>
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="service">Servicio</Label>
-                  <Select
-                    value={newAppointment.service}
-                    onValueChange={(value) => setNewAppointment({ ...newAppointment, service: value })}
-                    disabled={creating}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Seleccione un servicio" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {services.map((service) => (
-                        <SelectItem key={service} value={service}>
-                          {service}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="doctor">Médico Asignado</Label>
-                  <Select
-                    value={newAppointment.doctor}
-                    onValueChange={(value) => setNewAppointment({ ...newAppointment, doctor: value })}
-                    disabled={creating}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Seleccione un médico" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {doctors.map((doctor) => (
-                        <SelectItem key={doctor} value={doctor}>
-                          {doctor}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-              <Button onClick={handleCreateAppointment} className="w-full" disabled={creating}>
-                {creating && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                Registrar Cita
-              </Button>
-            </div>
-          </DialogContent>
-        </Dialog>
         <Button variant="outline" onClick={handleExport} className="gap-2">
           <Download className="h-4 w-4" />
           Exportar Datos
@@ -602,96 +553,406 @@ const Contingencia = () => {
           <CardDescription>Calendario mensual de citas - DSS04.04.4</CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="flex flex-col items-center w-full">
-            <div className="w-full max-w-4xl">
-              <CalendarComponent
-                mode="single"
-                selected={selectedDate}
-                onSelect={(date) => date && handleDateClick(date)}
-                month={calendarMonth}
-                onMonthChange={setCalendarMonth}
-                className="rounded-md border w-full p-6"
-                classNames={{
-                  months: "flex flex-col sm:flex-row space-y-4 sm:space-x-4 sm:space-y-0 w-full",
-                  month: "space-y-4 w-full",
-                  caption: "flex justify-center pt-1 relative items-center mb-4",
-                  caption_label: "text-lg font-semibold",
-                  nav: "space-x-1 flex items-center",
-                  nav_button: "h-8 w-8 bg-transparent p-0 opacity-50 hover:opacity-100",
-                  table: "w-full border-collapse space-y-1",
-                  head_row: "flex w-full",
-                  head_cell: "text-muted-foreground rounded-md w-full font-semibold text-sm py-2",
-                  row: "flex w-full mt-2",
-                  cell: "relative p-0 text-center text-sm focus-within:relative focus-within:z-20 w-full h-20",
-                  day: "w-full h-full",
-                }}
-                modifiers={{
-                  hasAppointments: (date) => hasAppointments(date),
-                }}
-                modifiersStyles={{
-                  hasAppointments: {
-                    fontWeight: 'bold',
-                  }
-                }}
-                components={calendarComponents}
-              />
+          <div className="flex gap-6">
+            {/* Calendario - Lado izquierdo */}
+            <div className="flex-1">
+              <div className="flex flex-col items-center w-full">
+                <div className="w-full">
+                  <CalendarComponent
+                    mode="single"
+                    selected={selectedDate}
+                    onSelect={(date) => date && handleDateClick(date)}
+                    month={calendarMonth}
+                    onMonthChange={setCalendarMonth}
+                    className="rounded-md border w-full p-6"
+                    classNames={{
+                      months: "flex flex-col sm:flex-row space-y-4 sm:space-x-4 sm:space-y-0 w-full",
+                      month: "space-y-4 w-full",
+                      caption: "flex justify-center pt-1 relative items-center mb-4",
+                      caption_label: "text-lg font-semibold",
+                      nav: "space-x-1 flex items-center",
+                      nav_button: "h-8 w-8 bg-transparent p-0 opacity-50 hover:opacity-100",
+                      table: "w-full border-collapse space-y-1",
+                      head_row: "flex w-full",
+                      head_cell: "text-muted-foreground rounded-md w-full font-semibold text-sm py-2",
+                      row: "flex w-full mt-2",
+                      cell: "relative p-0 text-center text-sm focus-within:relative focus-within:z-20 w-full h-20",
+                      day: "w-full h-full",
+                    }}
+                    modifiers={{
+                      hasAppointments: (date) => hasAppointments(date),
+                    }}
+                    modifiersStyles={{
+                      hasAppointments: {
+                        fontWeight: 'bold',
+                      }
+                    }}
+                    components={calendarComponents}
+                  />
+                </div>
+                <div className="mt-6 flex items-center gap-6 text-sm text-muted-foreground">
+                  <div className="flex items-center gap-2">
+                    <div className="w-3 h-3 rounded-full bg-blue-500" />
+                    <span className="font-medium">Programada</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <div className="w-3 h-3 rounded-full bg-green-500" />
+                    <span className="font-medium">Atendida</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <div className="w-3 h-3 rounded-full bg-red-500" />
+                    <span className="font-medium">Cancelada</span>
+                  </div>
+                </div>
+              </div>
             </div>
-            <div className="mt-6 flex items-center gap-6 text-sm text-muted-foreground">
-              <div className="flex items-center gap-2">
-                <div className="w-3 h-3 rounded-full bg-blue-500" />
-                <span className="font-medium">Programada</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <div className="w-3 h-3 rounded-full bg-green-500" />
-                <span className="font-medium">Atendida</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <div className="w-3 h-3 rounded-full bg-red-500" />
-                <span className="font-medium">Cancelada</span>
-              </div>
+
+            {/* Citas del día - Lado derecho */}
+            <div className="w-96">
+              {selectedDate ? (
+                <div className="space-y-4">
+                  <div>
+                    <h3 className="text-lg font-semibold">
+                      Citas del {selectedDate.toLocaleDateString("es-PE", { 
+                        weekday: 'long', 
+                        year: 'numeric', 
+                        month: 'long', 
+                        day: 'numeric' 
+                      })}
+                    </h3>
+                    <p className="text-sm text-muted-foreground">
+                      {getAppointmentsForDate(selectedDate).length} citas programadas
+                    </p>
+                  </div>
+                  
+                  <div className="space-y-2 max-h-96 overflow-y-auto">
+                    {getAppointmentsForDate(selectedDate).length === 0 ? (
+                      <p className="text-center text-muted-foreground py-8">No hay citas registradas para este día</p>
+                    ) : (
+                      getAppointmentsForDate(selectedDate).map((appointment) => (
+                        <div key={appointment.id} className="rounded-lg border p-3 space-y-2">
+                          <div className="flex items-center justify-between">
+                            <Badge variant="outline">#{appointment.id}</Badge>
+                            <Badge variant={getStatusBadgeVariant(appointment.estado)}>
+                              {getStatusBadgeText(appointment.estado)}
+                            </Badge>
+                          </div>
+                          <div>
+                            <p className="font-medium text-sm">{appointment.nombre_completo}</p>
+                            <p className="text-xs text-muted-foreground">
+                              {appointment.servicio} - {appointment.medico_asignado}
+                            </p>
+                          </div>
+                          <div className="flex items-center justify-between">
+                            <div className="text-xs text-muted-foreground">
+                              {new Date(appointment.fecha_hora).toLocaleTimeString("es-PE", { hour: '2-digit', minute: '2-digit' })}
+                            </div>
+                            {(user?.area === 'ADMIN' || user?.area === 'CLINICO') && (
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => handleEditAppointment(appointment)}
+                                className="gap-1 h-7"
+                              >
+                                <Edit className="h-3 w-3" />
+                                Editar
+                              </Button>
+                            )}
+                          </div>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </div>
+              ) : (
+                <div className="text-center text-muted-foreground py-8">
+                  <Calendar className="h-12 w-12 mx-auto mb-2 opacity-50" />
+                  <p>Seleccione una fecha para ver las citas</p>
+                </div>
+              )}
             </div>
           </div>
         </CardContent>
       </Card>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Todas las Citas Registradas</CardTitle>
-          <CardDescription>Total: {appointments.length} citas en modo contingencia</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-2">
-            {appointments.length === 0 ? (
-              <p className="text-center text-muted-foreground py-8">No hay citas registradas</p>
-            ) : (
-              appointments.map((appointment) => (
-                <div key={appointment.id} className="flex items-center justify-between rounded-lg border p-3">
-                  <div className="flex items-center gap-3">
-                    <Badge variant="outline">#{appointment.id}</Badge>
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <p className="text-sm font-medium text-foreground">{appointment.nombre_completo}</p>
-                        <Badge variant={getStatusBadgeVariant(appointment.estado)}>
-                          {getStatusBadgeText(appointment.estado)}
-                        </Badge>
-                      </div>
-                      <p className="text-xs text-muted-foreground">
-                        {appointment.servicio} - {appointment.medico_asignado}
-                      </p>
-                    </div>
-                  </div>
-                  <div className="text-right">
-                    <p className="text-sm font-medium text-foreground">{new Date(appointment.fecha_hora).toLocaleTimeString("es-PE", { hour: '2-digit', minute: '2-digit' })}</p>
-                    <p className="text-xs text-muted-foreground">
-                      {new Date(appointment.fecha_hora).toLocaleDateString("es-PE")}
-                    </p>
+
+      {/* Modal de fecha seleccionada */}
+      <Dialog open={isDateModalOpen} onOpenChange={setIsDateModalOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>
+              {selectedDateForModal?.toLocaleDateString("es-PE", { 
+                weekday: 'long', 
+                year: 'numeric', 
+                month: 'long', 
+                day: 'numeric' 
+              })}
+            </DialogTitle>
+            <DialogDescription>
+              Seleccione una acción para esta fecha
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="grid grid-cols-2 gap-4">
+              <Button 
+                onClick={handleCreateAppointmentFromDate}
+                className="gap-2 h-20"
+                disabled={!(user?.area === 'ADMIN' || user?.area === 'CLINICO')}
+              >
+                <Plus className="h-6 w-6" />
+                <div className="text-center">
+                  <div className="font-semibold">Registrar Nueva Cita</div>
+                  <div className="text-sm opacity-80">Crear cita para este día</div>
+                </div>
+              </Button>
+              
+              <Button 
+                variant="outline"
+                onClick={() => {
+                  setIsDateModalOpen(false);
+                  setSelectedDate(selectedDateForModal);
+                  // Scroll to appointments section
+                  setTimeout(() => {
+                    const appointmentsSection = document.getElementById('appointments-section');
+                    if (appointmentsSection) {
+                      appointmentsSection.scrollIntoView({ behavior: 'smooth' });
+                    }
+                  }, 100);
+                }}
+                className="gap-2 h-20"
+              >
+                <Eye className="h-6 w-6" />
+                <div className="text-center">
+                  <div className="font-semibold">Ver Citas del Día</div>
+                  <div className="text-sm opacity-80">
+                    {getAppointmentsForDate(selectedDateForModal || new Date()).length} citas
                   </div>
                 </div>
-              ))
-            )}
+              </Button>
+            </div>
           </div>
-        </CardContent>
-      </Card>
+        </DialogContent>
+      </Dialog>
+
+      {/* Modal de edición de cita */}
+      <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Editar Cita</DialogTitle>
+            <DialogDescription>
+              Modifique los datos de la cita
+            </DialogDescription>
+          </DialogHeader>
+          {editingAppointment && (
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label>DNI</Label>
+                  <Input value={editingAppointment.dni} disabled />
+                </div>
+                <div>
+                  <Label>Nombre Completo</Label>
+                  <Input value={editingAppointment.nombre_completo} disabled />
+                </div>
+              </div>
+              
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label>Servicio</Label>
+                  <Input value={editingAppointment.servicio} disabled />
+                </div>
+                <div>
+                  <Label>Médico Asignado</Label>
+                  <Input value={editingAppointment.medico_asignado} disabled />
+                </div>
+              </div>
+              
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label>Fecha</Label>
+                  <Input
+                    type="date"
+                    value={new Date(editingAppointment.fecha_hora).toISOString().split('T')[0]}
+                    onChange={(e) => {
+                      const newDate = new Date(editingAppointment.fecha_hora);
+                      const [year, month, day] = e.target.value.split('-');
+                      newDate.setFullYear(parseInt(year), parseInt(month) - 1, parseInt(day));
+                      setEditingAppointment({
+                        ...editingAppointment,
+                        fecha_hora: newDate.toISOString()
+                      });
+                    }}
+                    disabled={editing}
+                    min={new Date().toISOString().split('T')[0]}
+                  />
+                </div>
+                <div>
+                  <Label>Hora</Label>
+                  <Input
+                    type="time"
+                    value={new Date(editingAppointment.fecha_hora).toTimeString().slice(0, 5)}
+                    onChange={(e) => {
+                      const newDate = new Date(editingAppointment.fecha_hora);
+                      const [hours, minutes] = e.target.value.split(':');
+                      newDate.setHours(parseInt(hours), parseInt(minutes));
+                      setEditingAppointment({
+                        ...editingAppointment,
+                        fecha_hora: newDate.toISOString()
+                      });
+                    }}
+                    disabled={editing}
+                  />
+                </div>
+              </div>
+              
+              <div className="grid grid-cols-1 gap-4">
+                <div>
+                  <Label>Estado</Label>
+                  <Select
+                    value={editingAppointment.estado}
+                    onValueChange={(value) => setEditingAppointment({
+                      ...editingAppointment,
+                      estado: value
+                    })}
+                    disabled={editing}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="PROGRAMADA">Programada</SelectItem>
+                      <SelectItem value="ATENDIDA">Atendida</SelectItem>
+                      <SelectItem value="CANCELADA">Cancelada</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+              
+              <div className="flex justify-end gap-2">
+                <Button
+                  variant="outline"
+                  onClick={() => setIsEditDialogOpen(false)}
+                  disabled={editing}
+                >
+                  Cancelar
+                </Button>
+                <Button
+                  onClick={handleUpdateAppointment}
+                  disabled={editing}
+                  className="gap-2"
+                >
+                  {editing && <Loader2 className="h-4 w-4 animate-spin" />}
+                  <Edit className="h-4 w-4" />
+                  Actualizar
+                </Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Modal de creación de cita */}
+      <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Nueva Cita de Contingencia</DialogTitle>
+            <DialogDescription>Registre los datos esenciales del paciente y la cita</DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="dni">DNI</Label>
+                <Input
+                  id="dni"
+                  placeholder="12345678"
+                  value={newAppointment.dni}
+                  onChange={(e) => setNewAppointment({ ...newAppointment, dni: e.target.value.replaceAll(/\D/g, '') })}
+                  disabled={creating}
+                  maxLength={8}
+                  pattern="[0-9]{8}"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="fullName">Nombre Completo</Label>
+                <Input
+                  id="fullName"
+                  placeholder="Nombres y apellidos"
+                  value={newAppointment.fullName}
+                  onChange={(e) => setNewAppointment({ ...newAppointment, fullName: e.target.value })}
+                  disabled={creating}
+                />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="date">Fecha</Label>
+                <Input
+                  id="date"
+                  type="date"
+                  value={newAppointment.date}
+                  onChange={(e) => setNewAppointment({ ...newAppointment, date: e.target.value })}
+                  disabled={creating}
+                  min={new Date().toISOString().split('T')[0]}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="time">Hora</Label>
+                <Input
+                  id="time"
+                  type="time"
+                  value={newAppointment.time}
+                  onChange={(e) => setNewAppointment({ ...newAppointment, time: e.target.value })}
+                  disabled={creating}
+                />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="service">Servicio</Label>
+                <Select
+                  value={newAppointment.service}
+                  onValueChange={(value) => setNewAppointment({ ...newAppointment, service: value })}
+                  disabled={creating}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Seleccione un servicio" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {services.map((service) => (
+                      <SelectItem key={service} value={service}>
+                        {service}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="doctor">Médico Asignado</Label>
+                <Select
+                  value={newAppointment.doctor}
+                  onValueChange={(value) => setNewAppointment({ ...newAppointment, doctor: value })}
+                  disabled={creating}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Seleccione un médico" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {doctors.map((doctor) => (
+                      <SelectItem key={doctor} value={doctor}>
+                        {doctor}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <Button onClick={handleCreateAppointment} className="w-full" disabled={creating}>
+              {creating && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              Registrar Cita
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

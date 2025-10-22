@@ -24,11 +24,11 @@ const createCitaValidation = [
 router.use(authenticateToken);
 
 // Rutas
-router.get('/', requireAnyRole('ADMISION', 'CLINICO', 'ADMIN'), getCitas);
-router.get('/hoy', requireAnyRole('ADMISION', 'CLINICO', 'ADMIN'), getCitasDelDia);
-router.post('/', requireAnyRole('ADMISION', 'ADMIN'), createCitaValidation, createCita);
-router.patch('/:id', requireAnyRole('ADMISION', 'CLINICO', 'ADMIN'), updateCita);
-router.get('/export', requireAnyRole('ADMISION', 'ADMIN'), exportCitas);
+router.get('/', requireAnyRole('CLINICO', 'ADMIN'), getCitas);
+router.get('/hoy', requireAnyRole('CLINICO', 'ADMIN'), getCitasDelDia);
+router.post('/', requireAnyRole('CLINICO', 'ADMIN'), createCitaValidation, createCita);
+router.patch('/:id', requireAnyRole('CLINICO', 'ADMIN'), updateCita);
+router.get('/export', requireAnyRole('CLINICO', 'ADMIN'), exportCitas);
 
 export default router;
 

@@ -1,8 +1,11 @@
 import { useEffect, useState } from "react";
-import { excepcionesAPI } from "@/services/api";
+import { excepcionesAPI, citasAPI } from "@/services/api";
+import { useAuth } from "@/hooks/useAuth";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { AlertTriangle, CheckCircle2, Clock, TrendingUp, Loader2 } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { AlertTriangle, CheckCircle2, Clock, TrendingUp, Loader2, Calendar, Users } from "lucide-react";
+import { Link } from "react-router-dom";
 
 interface Exception {
   id: number;
@@ -14,29 +17,65 @@ interface Exception {
   fecha_limite: string | null;
 }
 
+interface Appointment {
+  id: number;
+  dni: string;
+  nombre_completo: string;
+  servicio: string;
+  medico_asignado: string;
+  fecha_hora: string;
+  estado: string;
+  creado_en: string;
+}
+
 const Dashboard = () => {
+  const { user } = useAuth();
   const [estadisticas, setEstadisticas] = useState<{
     porEstado: Array<{ estado: string; total: number }>;
     topCategorias: Array<{ categoria: string; frecuencia: number }>;
     recientes: Exception[];
     vencidas: number;
   } | null>(null);
+  const [appointmentStats, setAppointmentStats] = useState<{
+    total: number;
+    programadas: number;
+    atendidas: number;
+    canceladas: number;
+    hoy: number;
+  } | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const fetchEstadisticas = async () => {
+    const fetchData = async () => {
       try {
-        const data = await excepcionesAPI.getEstadisticas();
-        setEstadisticas(data);
+        // Cargar estadísticas de excepciones para todos los roles
+        const excepcionesData = await excepcionesAPI.getEstadisticas();
+        setEstadisticas(excepcionesData);
+
+        // Cargar estadísticas de citas para roles clínicos
+        if (user?.area === 'CLINICO' || user?.area === 'ADMIN') {
+          const citas = await citasAPI.getAll();
+          const hoy = new Date().toISOString().split('T')[0];
+          
+          const stats = {
+            total: citas.length,
+            programadas: citas.filter(c => c.estado === 'PROGRAMADA').length,
+            atendidas: citas.filter(c => c.estado === 'ATENDIDA').length,
+            canceladas: citas.filter(c => c.estado === 'CANCELADA').length,
+            hoy: citas.filter(c => c.fecha_hora.startsWith(hoy)).length,
+          };
+          
+          setAppointmentStats(stats);
+        }
       } catch (error) {
-        console.error("Error al obtener estadísticas:", error);
+        console.error("Error al obtener datos:", error);
       } finally {
         setLoading(false);
       }
     };
 
-    fetchEstadisticas();
-  }, []);
+    fetchData();
+  }, [user?.area]);
 
   if (loading) {
     return (
@@ -54,51 +93,132 @@ const Dashboard = () => {
     );
   }
 
-  // Calcular estadísticas en tiempo real
-  const porEstadoMap = estadisticas.porEstado.reduce((acc, item) => {
-    acc[item.estado] = item.total;
-    return acc;
-  }, {} as Record<string, number>);
+  // Función para generar estadísticas según el rol
+  const getStatsForRole = () => {
+    if (!estadisticas) return [];
 
-  const openExceptions = porEstadoMap['ABIERTO'] || 0;
-  const closedExceptions = porEstadoMap['CERRADO'] || 0;
-  const inProgressExceptions = porEstadoMap['EN_PROGRESO'] || 0;
-  const totalExceptions = openExceptions + closedExceptions + inProgressExceptions;
+    const porEstadoMap = estadisticas.porEstado.reduce((acc, item) => {
+      acc[item.estado] = item.total;
+      return acc;
+    }, {} as Record<string, number>);
 
-  const stats = [
-    {
-      title: "Excepciones Abiertas",
-      value: openExceptions.toString(),
-      change: `${inProgressExceptions} en progreso`,
-      trend: "up",
-      icon: AlertTriangle,
-      color: "text-destructive",
-    },
-    {
-      title: "Resoluciones Completadas",
-      value: closedExceptions.toString(),
-      change: "Este mes",
-      trend: "up",
-      icon: CheckCircle2,
-      color: "text-success",
-    },
-    {
-      title: "Total Excepciones",
-      value: totalExceptions.toString(),
-      change: "Registradas",
-      trend: "up",
-      icon: Clock,
-      color: "text-primary",
-    },
-    {
-      title: "Tasa de Cumplimiento",
-      value: totalExceptions > 0 ? `${Math.round((closedExceptions / totalExceptions) * 100)}%` : "0%",
-      change: "Del total",
-      trend: "up",
-      icon: TrendingUp,
-      color: "text-success",
-    },
-  ];
+    const openExceptions = porEstadoMap['ABIERTO'] || 0;
+    const closedExceptions = porEstadoMap['CERRADO'] || 0;
+    const inProgressExceptions = porEstadoMap['EN_PROGRESO'] || 0;
+    const totalExceptions = openExceptions + closedExceptions + inProgressExceptions;
+
+    if (user?.area === 'CLINICO') {
+      // Dashboard específico para Personal Clínico
+      return [
+        {
+          title: "Citas de Hoy",
+          value: appointmentStats?.hoy.toString() || "0",
+          change: "Programadas",
+          trend: "up",
+          icon: Calendar,
+          color: "text-primary",
+        },
+        {
+          title: "Citas Programadas",
+          value: appointmentStats?.programadas.toString() || "0",
+          change: "Pendientes",
+          trend: "up",
+          icon: Clock,
+          color: "text-warning",
+        },
+        {
+          title: "Citas Atendidas",
+          value: appointmentStats?.atendidas.toString() || "0",
+          change: "Este mes",
+          trend: "up",
+          icon: CheckCircle2,
+          color: "text-success",
+        },
+        {
+          title: "Excepciones Registradas",
+          value: totalExceptions.toString(),
+          change: "Por resolver",
+          trend: "up",
+          icon: AlertTriangle,
+          color: "text-destructive",
+        },
+      ];
+    } else if (user?.area === 'TI') {
+      // Dashboard específico para TI
+      return [
+        {
+          title: "Tickets Asignados",
+          value: inProgressExceptions.toString(),
+          change: "En progreso",
+          trend: "up",
+          icon: Activity,
+          color: "text-warning",
+        },
+        {
+          title: "Tickets Resueltos",
+          value: closedExceptions.toString(),
+          change: "Este mes",
+          trend: "up",
+          icon: CheckCircle2,
+          color: "text-success",
+        },
+        {
+          title: "Tickets Pendientes",
+          value: openExceptions.toString(),
+          change: "Sin asignar",
+          trend: "up",
+          icon: AlertTriangle,
+          color: "text-destructive",
+        },
+        {
+          title: "Tasa de Resolución",
+          value: totalExceptions > 0 ? `${Math.round((closedExceptions / totalExceptions) * 100)}%` : "0%",
+          change: "Del total",
+          trend: "up",
+          icon: TrendingUp,
+          color: "text-success",
+        },
+      ];
+    } else {
+      // Dashboard para ADMIN (original)
+      return [
+        {
+          title: "Excepciones Abiertas",
+          value: openExceptions.toString(),
+          change: `${inProgressExceptions} en progreso`,
+          trend: "up",
+          icon: AlertTriangle,
+          color: "text-destructive",
+        },
+        {
+          title: "Resoluciones Completadas",
+          value: closedExceptions.toString(),
+          change: "Este mes",
+          trend: "up",
+          icon: CheckCircle2,
+          color: "text-success",
+        },
+        {
+          title: "Total Excepciones",
+          value: totalExceptions.toString(),
+          change: "Registradas",
+          trend: "up",
+          icon: Clock,
+          color: "text-primary",
+        },
+        {
+          title: "Tasa de Cumplimiento",
+          value: totalExceptions > 0 ? `${Math.round((closedExceptions / totalExceptions) * 100)}%` : "0%",
+          change: "Del total",
+          trend: "up",
+          icon: TrendingUp,
+          color: "text-success",
+        },
+      ];
+    }
+  };
+
+  const stats = getStatsForRole();
 
   // Top issues con severidad
   const topIssues = estadisticas.topCategorias.map((item) => ({
@@ -169,9 +289,18 @@ const Dashboard = () => {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-3xl font-bold tracking-tight text-foreground">Dashboard de Control Interno</h1>
-        <p className="text-muted-foreground">Monitoreo y métricas clave de control - MEA02</p>
+        <h1 className="text-3xl font-bold tracking-tight text-foreground">
+          {user?.area === 'CLINICO' ? 'Dashboard Clínico' : 
+           user?.area === 'TI' ? 'Dashboard de Soporte TI' : 
+           'Dashboard de Control Interno'}
+        </h1>
+        <p className="text-muted-foreground">
+          {user?.area === 'CLINICO' ? 'Gestión de citas y excepciones clínicas - DSS04' :
+           user?.area === 'TI' ? 'Gestión de tickets y soporte técnico - MEA02' :
+           'Monitoreo y métricas clave de control - MEA02'}
+        </p>
       </div>
+
 
       {/* Stats Grid */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
@@ -199,67 +328,151 @@ const Dashboard = () => {
 
 
       <div className="grid gap-6 md:grid-cols-2">
-        {/* Top 5 Issues */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Top 5 Tipos de Fallas</CardTitle>
-            <CardDescription>Análisis de causa raíz - MEA02.03.3</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-3">
-              {topIssues.length > 0 ? (
-                topIssues.map((issue, index) => (
-                  <div key={index} className="flex items-center justify-between rounded-lg border p-3">
-                    <div className="flex-1">
-                      <p className="text-sm font-medium text-foreground">{issue.type}</p>
-                      <p className="text-xs text-muted-foreground">{issue.count} ocurrencias</p>
+        {/* Sección específica para Personal Clínico */}
+        {user?.area === 'CLINICO' ? (
+          <>
+            {/* Resumen de Citas */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Calendar className="h-5 w-5" />
+                  Resumen de Citas
+                </CardTitle>
+                <CardDescription>Estado actual de las citas de contingencia</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="text-center p-4 rounded-lg bg-primary/10">
+                      <div className="text-2xl font-bold text-primary">{appointmentStats?.programadas || 0}</div>
+                      <div className="text-sm text-muted-foreground">Programadas</div>
                     </div>
-                    <Badge variant={getSeverityColor(issue.severity) as "destructive" | "warning" | "secondary"}>
-                      {issue.severity === "critical" && "Crítico"}
-                      {issue.severity === "high" && "Alto"}
-                      {issue.severity === "medium" && "Medio"}
-                      {issue.severity === "low" && "Bajo"}
-                    </Badge>
+                    <div className="text-center p-4 rounded-lg bg-success/10">
+                      <div className="text-2xl font-bold text-success">{appointmentStats?.atendidas || 0}</div>
+                      <div className="text-sm text-muted-foreground">Atendidas</div>
+                    </div>
                   </div>
-                ))
-              ) : (
-                <p className="text-center text-muted-foreground py-4">No hay datos disponibles</p>
-              )}
-            </div>
-          </CardContent>
-        </Card>
+                  <div className="text-center p-4 rounded-lg bg-destructive/10">
+                    <div className="text-2xl font-bold text-destructive">{appointmentStats?.canceladas || 0}</div>
+                    <div className="text-sm text-muted-foreground">Canceladas</div>
+                  </div>
+                  <div className="pt-2 border-t">
+                    <Link to="/contingencia">
+                      <Button className="w-full" variant="outline">
+                        <Calendar className="h-4 w-4 mr-2" />
+                        Ver Calendario de Citas
+                      </Button>
+                    </Link>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
 
-        {/* Recent Exceptions */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Excepciones Recientes</CardTitle>
-            <CardDescription>Últimas excepciones registradas</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-3">
-              {recentExceptions.length > 0 ? (
-                recentExceptions.map((exception) => (
-                  <div key={exception.id} className="flex items-start justify-between rounded-lg border p-3">
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2">
-                        <p className="text-sm font-medium text-primary">{exception.id}</p>
-                        <Badge variant={getStatusColor(exception.status) as "destructive" | "warning" | "success" | "secondary"} className="text-xs">
-                          {getStatusText(exception.status)}
+            {/* Excepciones Recientes */}
+            <Card>
+              <CardHeader>
+                <CardTitle>Mis Excepciones Recientes</CardTitle>
+                <CardDescription>Últimas excepciones que registré</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-3">
+                  {recentExceptions.length > 0 ? (
+                    recentExceptions.map((exception) => (
+                      <div key={exception.id} className="flex items-start justify-between rounded-lg border p-3">
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2">
+                            <p className="text-sm font-medium text-primary">#{exception.id}</p>
+                            <Badge variant={getStatusColor(exception.status) as "destructive" | "warning" | "success" | "secondary"} className="text-xs">
+                              {getStatusText(exception.status)}
+                            </Badge>
+                          </div>
+                          <p className="mt-1 text-xs text-muted-foreground">{exception.description}</p>
+                          <p className="mt-1 text-xs text-muted-foreground">
+                            <Clock className="inline h-3 w-3" /> {exception.days} días
+                          </p>
+                        </div>
+                      </div>
+                    ))
+                  ) : (
+                    <div className="text-center py-4">
+                      <p className="text-muted-foreground mb-2">No hay excepciones registradas</p>
+                      <Link to="/excepciones">
+                        <Button size="sm" variant="outline">
+                          <Plus className="h-4 w-4 mr-2" />
+                          Registrar Primera Excepción
+                        </Button>
+                      </Link>
+                    </div>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+          </>
+        ) : (
+          <>
+            {/* Top 5 Issues */}
+            <Card>
+              <CardHeader>
+                <CardTitle>Top 5 Tipos de Fallas</CardTitle>
+                <CardDescription>Análisis de causa raíz - MEA02.03.3</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-3">
+                  {topIssues.length > 0 ? (
+                    topIssues.map((issue, index) => (
+                      <div key={index} className="flex items-center justify-between rounded-lg border p-3">
+                        <div className="flex-1">
+                          <p className="text-sm font-medium text-foreground">{issue.type}</p>
+                          <p className="text-xs text-muted-foreground">{issue.count} ocurrencias</p>
+                        </div>
+                        <Badge variant={getSeverityColor(issue.severity) as "destructive" | "warning" | "secondary"}>
+                          {issue.severity === "critical" && "Crítico"}
+                          {issue.severity === "high" && "Alto"}
+                          {issue.severity === "medium" && "Medio"}
+                          {issue.severity === "low" && "Bajo"}
                         </Badge>
                       </div>
-                      <p className="mt-1 text-xs text-muted-foreground">{exception.description}</p>
-                      <p className="mt-1 text-xs text-muted-foreground">
-                        <Clock className="inline h-3 w-3" /> {exception.days} días
-                      </p>
-                    </div>
-                  </div>
-                ))
-              ) : (
-                <p className="text-center text-muted-foreground py-4">No hay excepciones registradas</p>
-              )}
-            </div>
-          </CardContent>
-        </Card>
+                    ))
+                  ) : (
+                    <p className="text-center text-muted-foreground py-4">No hay datos disponibles</p>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Recent Exceptions */}
+            <Card>
+              <CardHeader>
+                <CardTitle>Excepciones Recientes</CardTitle>
+                <CardDescription>Últimas excepciones registradas</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-3">
+                  {recentExceptions.length > 0 ? (
+                    recentExceptions.map((exception) => (
+                      <div key={exception.id} className="flex items-start justify-between rounded-lg border p-3">
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2">
+                            <p className="text-sm font-medium text-primary">{exception.id}</p>
+                            <Badge variant={getStatusColor(exception.status) as "destructive" | "warning" | "success" | "secondary"} className="text-xs">
+                              {getStatusText(exception.status)}
+                            </Badge>
+                          </div>
+                          <p className="mt-1 text-xs text-muted-foreground">{exception.description}</p>
+                          <p className="mt-1 text-xs text-muted-foreground">
+                            <Clock className="inline h-3 w-3" /> {exception.days} días
+                          </p>
+                        </div>
+                      </div>
+                    ))
+                  ) : (
+                    <p className="text-center text-muted-foreground py-4">No hay excepciones registradas</p>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+          </>
+        )}
       </div>
     </div>
   );

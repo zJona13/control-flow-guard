@@ -44,7 +44,7 @@ export interface User {
   email: string;
   nombres: string;
   apellidos: string;
-  area: 'ADMIN' | 'TI' | 'CONTROL_INTERNO' | 'ADMISION' | 'CLINICO';
+  area: 'ADMIN' | 'TI' | 'CLINICO';
 }
 
 export interface AuthResponse {
@@ -105,6 +105,26 @@ export const authAPI = {
     localStorage.removeItem('token');
     localStorage.removeItem('user');
   },
+
+  getUsers: async (): Promise<User[]> => {
+    const response = await api.get<User[]>('/api/auth/users');
+    return response.data;
+  },
+
+  updateUser: async (id: string, data: {
+    nombres?: string;
+    apellidos?: string;
+    area?: string;
+    activo?: boolean;
+  }): Promise<{ message: string; user: User }> => {
+    const response = await api.patch<{ message: string; user: User }>(`/api/auth/users/${id}`, data);
+    return response.data;
+  },
+
+  toggleUserStatus: async (id: string): Promise<{ message: string; user: User }> => {
+    const response = await api.patch<{ message: string; user: User }>(`/api/auth/users/${id}/toggle-status`);
+    return response.data;
+  },
 };
 
 // API de excepciones
@@ -128,6 +148,19 @@ export const excepcionesAPI = {
     data: { estado?: string; causa_raiz?: string }
   ): Promise<{ message: string; excepcion: Exception }> => {
     const response = await api.patch(`/api/excepciones/${id}`, data);
+    return response.data;
+  },
+
+  getTiUsers: async (): Promise<User[]> => {
+    const response = await api.get<User[]>('/api/excepciones/ti-users');
+    return response.data;
+  },
+
+  assignResponsable: async (
+    id: number,
+    data: { responsable_id?: string; fecha_limite?: string }
+  ): Promise<{ message: string; excepcion: Exception }> => {
+    const response = await api.patch(`/api/excepciones/${id}/assign`, data);
     return response.data;
   },
 

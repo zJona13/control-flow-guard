@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { excepcionesAPI } from "@/services/api";
+import { useAuth } from "@/hooks/useAuth";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -8,7 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { Plus, Search, AlertCircle, Clock, Loader2 } from "lucide-react";
+import { Plus, Search, AlertCircle, Clock, Loader2, UserPlus, Calendar, CheckCircle, Edit } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { z } from "zod";
 
@@ -31,6 +32,7 @@ interface Exception {
 const descriptionSchema = z.string().min(10, "La descripción debe tener al menos 10 caracteres").max(1000);
 
 const Excepciones = () => {
+  const { user } = useAuth();
   const [exceptions, setExceptions] = useState<Exception[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -39,6 +41,24 @@ const Excepciones = () => {
   const [newException, setNewException] = useState({
     descripcion: "",
     categoria: "" as ExceptionCategory,
+  });
+  
+  // Estados para asignación (solo ADMIN)
+  const [isAssignDialogOpen, setIsAssignDialogOpen] = useState(false);
+  const [selectedException, setSelectedException] = useState<Exception | null>(null);
+  const [tiUsers, setTiUsers] = useState<User[]>([]);
+  const [assigning, setAssigning] = useState(false);
+  const [assignmentData, setAssignmentData] = useState({
+    responsable_id: "",
+    fecha_limite: "",
+  });
+
+  // Estados para resolución (solo TI)
+  const [isResolveDialogOpen, setIsResolveDialogOpen] = useState(false);
+  const [resolving, setResolving] = useState(false);
+  const [resolveData, setResolveData] = useState({
+    estado: "",
+    causa_raiz: "",
   });
 
   const fetchExceptions = async () => {
@@ -54,6 +74,106 @@ const Excepciones = () => {
       });
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchTiUsers = async () => {
+    try {
+      const data = await excepcionesAPI.getTiUsers();
+      setTiUsers(data);
+    } catch (error) {
+      console.error("Error al obtener usuarios de TI:", error);
+      toast({
+        title: "Error",
+        description: "No se pudieron cargar los usuarios de TI",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleAssignClick = (exception: Exception) => {
+    setSelectedException(exception);
+    setAssignmentData({
+      responsable_id: exception.responsable_id || "",
+      fecha_limite: exception.fecha_limite || "",
+    });
+    setIsAssignDialogOpen(true);
+    fetchTiUsers();
+  };
+
+  const handleAssignSubmit = async () => {
+    if (!selectedException) return;
+
+    try {
+      setAssigning(true);
+      
+      const data: { responsable_id?: string; fecha_limite?: string } = {};
+      if (assignmentData.responsable_id) data.responsable_id = assignmentData.responsable_id;
+      if (assignmentData.fecha_limite) data.fecha_limite = assignmentData.fecha_limite;
+
+      await excepcionesAPI.assignResponsable(selectedException.id, data);
+      
+      toast({
+        title: "Éxito",
+        description: "Asignación realizada correctamente",
+        variant: "default",
+      });
+
+      setIsAssignDialogOpen(false);
+      setSelectedException(null);
+      setAssignmentData({ responsable_id: "", fecha_limite: "" });
+      fetchExceptions(); // Recargar la lista
+    } catch (error) {
+      console.error("Error al asignar responsable:", error);
+      toast({
+        title: "Error",
+        description: "No se pudo realizar la asignación",
+        variant: "destructive",
+      });
+    } finally {
+      setAssigning(false);
+    }
+  };
+
+  const handleResolveClick = (exception: Exception) => {
+    setSelectedException(exception);
+    setResolveData({
+      estado: exception.estado,
+      causa_raiz: exception.causa_raiz || "",
+    });
+    setIsResolveDialogOpen(true);
+  };
+
+  const handleResolveSubmit = async () => {
+    if (!selectedException) return;
+
+    try {
+      setResolving(true);
+      
+      await excepcionesAPI.update(selectedException.id, {
+        estado: resolveData.estado,
+        causa_raiz: resolveData.causa_raiz,
+      });
+      
+      toast({
+        title: "Éxito",
+        description: "Ticket actualizado correctamente",
+        variant: "default",
+      });
+
+      setIsResolveDialogOpen(false);
+      setSelectedException(null);
+      setResolveData({ estado: "", causa_raiz: "" });
+      fetchExceptions(); // Recargar la lista
+    } catch (error) {
+      console.error("Error al actualizar ticket:", error);
+      toast({
+        title: "Error",
+        description: "No se pudo actualizar el ticket",
+        variant: "destructive",
+      });
+    } finally {
+      setResolving(false);
     }
   };
 
@@ -162,16 +282,24 @@ const Excepciones = () => {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight text-foreground">Excepciones de Control</h1>
-          <p className="text-muted-foreground">Gestión de excepciones y acciones correctivas - MEA02.04</p>
+          <h1 className="text-3xl font-bold tracking-tight text-foreground">
+            {user?.area === 'TI' ? 'Mis Tickets de Soporte' : 'Excepciones de Control'}
+          </h1>
+          <p className="text-muted-foreground">
+            {user?.area === 'TI' 
+              ? 'Tickets asignados para resolución - MEA02.04' 
+              : 'Gestión de excepciones y acciones correctivas - MEA02.04'
+            }
+          </p>
         </div>
-        <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-          <DialogTrigger asChild>
-            <Button className="gap-2">
-              <Plus className="h-4 w-4" />
-              Nueva Excepción
-            </Button>
-          </DialogTrigger>
+        {user?.area !== 'TI' && (
+          <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+            <DialogTrigger asChild>
+              <Button className="gap-2">
+                <Plus className="h-4 w-4" />
+                Nueva Excepción
+              </Button>
+            </DialogTrigger>
           <DialogContent>
             <DialogHeader>
               <DialogTitle>Registrar Nueva Excepción</DialogTitle>
@@ -214,6 +342,7 @@ const Excepciones = () => {
             </div>
           </DialogContent>
         </Dialog>
+        )}
       </div>
 
       <Card>
@@ -289,11 +418,166 @@ const Excepciones = () => {
                     <p className="text-sm text-foreground">{exception.causa_raiz}</p>
                   </div>
                 )}
+                
+                {/* Botones según el rol del usuario */}
+                <div className="mt-4 flex justify-end gap-2">
+                  {user?.area === 'ADMIN' && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleAssignClick(exception)}
+                      className="gap-2"
+                    >
+                      <UserPlus className="h-4 w-4" />
+                      Asignar TI
+                    </Button>
+                  )}
+                  
+                  {user?.area === 'TI' && exception.responsable_id === user.id && exception.estado !== 'CERRADO' && (
+                    <Button
+                      variant="default"
+                      size="sm"
+                      onClick={() => handleResolveClick(exception)}
+                      className="gap-2"
+                    >
+                      <Edit className="h-4 w-4" />
+                      Resolver Ticket
+                    </Button>
+                  )}
+                </div>
               </CardContent>
             </Card>
           ))
         )}
       </div>
+
+      {/* Diálogo de asignación */}
+      <Dialog open={isAssignDialogOpen} onOpenChange={setIsAssignDialogOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Asignar Responsable TI</DialogTitle>
+            <DialogDescription>
+              Asigne un usuario de TI y establezca una fecha límite para la excepción #{selectedException?.id}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="responsable">Responsable TI</Label>
+              <Select
+                value={assignmentData.responsable_id}
+                onValueChange={(value) => setAssignmentData({ ...assignmentData, responsable_id: value })}
+                disabled={assigning}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Seleccionar responsable..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {tiUsers.map((user) => (
+                    <SelectItem key={user.id} value={user.id}>
+                      {user.nombres} {user.apellidos} ({user.email})
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            
+            <div className="space-y-2">
+              <Label htmlFor="fecha_limite">Fecha Límite</Label>
+              <div className="relative">
+                <Calendar className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                <Input
+                  id="fecha_limite"
+                  type="date"
+                  value={assignmentData.fecha_limite}
+                  onChange={(e) => setAssignmentData({ ...assignmentData, fecha_limite: e.target.value })}
+                  disabled={assigning}
+                  className="pl-10"
+                />
+              </div>
+            </div>
+            
+            <div className="flex justify-end gap-2">
+              <Button
+                variant="outline"
+                onClick={() => setIsAssignDialogOpen(false)}
+                disabled={assigning}
+              >
+                Cancelar
+              </Button>
+              <Button
+                onClick={handleAssignSubmit}
+                disabled={assigning || (!assignmentData.responsable_id && !assignmentData.fecha_limite)}
+                className="gap-2"
+              >
+                {assigning && <Loader2 className="h-4 w-4 animate-spin" />}
+                Asignar
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Diálogo de resolución para usuarios de TI */}
+      <Dialog open={isResolveDialogOpen} onOpenChange={setIsResolveDialogOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Resolver Ticket #{selectedException?.id}</DialogTitle>
+            <DialogDescription>
+              Actualice el estado y agregue la causa raíz de la solución
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="estado">Estado</Label>
+              <Select
+                value={resolveData.estado}
+                onValueChange={(value) => setResolveData({ ...resolveData, estado: value })}
+                disabled={resolving}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Seleccionar estado..." />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="ABIERTO">Abierto</SelectItem>
+                  <SelectItem value="EN_PROGRESO">En Progreso</SelectItem>
+                  <SelectItem value="CERRADO">Cerrado</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            
+            <div className="space-y-2">
+              <Label htmlFor="causa_raiz">Causa Raíz / Solución</Label>
+              <Textarea
+                id="causa_raiz"
+                placeholder="Describa la causa raíz y la solución implementada..."
+                value={resolveData.causa_raiz}
+                onChange={(e) => setResolveData({ ...resolveData, causa_raiz: e.target.value })}
+                disabled={resolving}
+                rows={4}
+              />
+            </div>
+            
+            <div className="flex justify-end gap-2">
+              <Button
+                variant="outline"
+                onClick={() => setIsResolveDialogOpen(false)}
+                disabled={resolving}
+              >
+                Cancelar
+              </Button>
+              <Button
+                onClick={handleResolveSubmit}
+                disabled={resolving || !resolveData.estado}
+                className="gap-2"
+              >
+                {resolving && <Loader2 className="h-4 w-4 animate-spin" />}
+                <CheckCircle className="h-4 w-4" />
+                Actualizar Ticket
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

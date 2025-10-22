@@ -6,15 +6,23 @@ CREATE DATABASE IF NOT EXISTS control_flow_guard
   CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 USE control_flow_guard;
 
--- 1) Tabla de usuarios
+-- Drop tables in correct order (child tables first)
+DROP TABLE IF EXISTS cita_exportacion;
+DROP TABLE IF EXISTS export_lotes;
+DROP TABLE IF EXISTS excepcion_acciones;
+DROP TABLE IF EXISTS citas_contingencia;
+DROP TABLE IF EXISTS control_excepciones;
+DROP TABLE IF EXISTS ti_responsables;
 DROP TABLE IF EXISTS usuarios;
+
+-- 1) Tabla de usuarios
 CREATE TABLE IF NOT EXISTS usuarios (
   id CHAR(36) PRIMARY KEY,                         -- sin DEFAULT UUID()
   email VARCHAR(255) NOT NULL UNIQUE,
   password_hash VARCHAR(255) NOT NULL,
   nombres VARCHAR(100) NOT NULL,
   apellidos VARCHAR(100) NOT NULL,
-  area ENUM('ADMIN', 'TI', 'CONTROL_INTERNO', 'ADMISION', 'CLINICO') NOT NULL,
+  area ENUM('ADMIN', 'TI', 'CLINICO') NOT NULL,
   activo BOOLEAN DEFAULT TRUE,
   creado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   actualizado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
@@ -123,11 +131,10 @@ WHERE estado <> 'CERRADO'
   AND fecha_limite IS NOT NULL
   AND fecha_limite < CURDATE();
 
--- 8) TRIGGERS (usar DELIMITER por BEGIN...END)
-DELIMITER $$
+-- 8) TRIGGERS (sintaxis compatible con Node.js MySQL driver)
 
 -- 8.a) Asignar UUID a usuarios.id si viene NULL
-DROP TRIGGER IF EXISTS trg_usuarios_uuid $$
+DROP TRIGGER IF EXISTS trg_usuarios_uuid;
 CREATE TRIGGER trg_usuarios_uuid
 BEFORE INSERT ON usuarios
 FOR EACH ROW
@@ -135,10 +142,10 @@ BEGIN
   IF NEW.id IS NULL OR NEW.id = '' THEN
     SET NEW.id = UUID();
   END IF;
-END $$
+END;
 
 -- 8.b) Asignación automática de responsable y fecha límite
-DROP TRIGGER IF EXISTS trg_asigna_responsable_excepcion $$
+DROP TRIGGER IF EXISTS trg_asigna_responsable_excepcion;
 CREATE TRIGGER trg_asigna_responsable_excepcion
 BEFORE INSERT ON control_excepciones
 FOR EACH ROW
@@ -161,9 +168,7 @@ BEGIN
       SET NEW.fecha_limite = DATE_ADD(NEW.fecha, INTERVAL v_sla_dias DAY);
     END IF;
   END IF;
-END $$
-
-DELIMITER ;
+END;
 
 -- 9) Comentarios
 ALTER TABLE usuarios COMMENT = 'Tabla de usuarios del sistema con autenticación y roles';

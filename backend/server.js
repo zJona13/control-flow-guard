@@ -66,7 +66,10 @@ app.listen(PORT, () => {
   console.log(`  GET    /api/auth/profile`);
   console.log(`  GET    /api/excepciones`);
   console.log(`  POST   /api/excepciones`);
+  console.log(`  PATCH  /api/excepciones/:id`);
   console.log(`  GET    /api/excepciones/estadisticas`);
+  console.log(`  GET    /api/excepciones/ti-users`);
+  console.log(`  PATCH  /api/excepciones/:id/assign`);
   console.log(`  GET    /api/citas`);
   console.log(`  POST   /api/citas`);
   console.log(`\n✓ Servidor listo para recibir peticiones\n`);

@@ -1,7 +1,7 @@
 import { ReactNode } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { cn } from "@/lib/utils";
-import { LayoutDashboard, AlertTriangle, Calendar, LogOut } from "lucide-react";
+import { LayoutDashboard, AlertTriangle, Calendar, LogOut, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { toast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
@@ -35,8 +35,6 @@ const Layout = ({ children }: LayoutProps) => {
     const labels: Record<string, string> = {
       ADMIN: "Administrador",
       TI: "Tecnología de Información",
-      CONTROL_INTERNO: "Control Interno",
-      ADMISION: "Personal de Admisión",
       CLINICO: "Personal Clínico",
     };
     return labels[role] || role;
@@ -46,11 +44,33 @@ const Layout = ({ children }: LayoutProps) => {
   const userDisplayName = profile ? `${profile.nombres} ${profile.apellidos}` : user?.email || "Usuario";
   const userRoleLabel = userRole ? getRoleLabel(userRole) : "Usuario del Sistema";
 
-  const navItems = [
-    { path: "/", label: "Dashboard", icon: LayoutDashboard },
-    { path: "/excepciones", label: "Excepciones de Control", icon: AlertTriangle },
-    { path: "/contingencia", label: "Citas de Contingencia", icon: Calendar },
-  ];
+  // Definir menús según el rol del usuario
+  const getNavItems = () => {
+    const baseItems = [
+      { path: "/", label: "Dashboard", icon: LayoutDashboard },
+      { path: "/excepciones", label: "Excepciones de Control", icon: AlertTriangle },
+    ];
+
+    switch (userRole) {
+      case 'ADMIN':
+        return [
+          ...baseItems,
+          { path: "/contingencia", label: "Citas de Contingencia", icon: Calendar },
+          { path: "/usuarios", label: "Usuarios", icon: Users },
+        ];
+      case 'CLINICO':
+        return [
+          ...baseItems,
+          { path: "/contingencia", label: "Citas de Contingencia", icon: Calendar },
+        ];
+      case 'TI':
+        return baseItems;
+      default:
+        return baseItems;
+    }
+  };
+
+  const navItems = getNavItems();
 
   return (
     <div className="min-h-screen bg-background">

@@ -4,7 +4,9 @@ import {
   getExcepciones, 
   createExcepcion, 
   updateExcepcion, 
-  getEstadisticas 
+  getEstadisticas,
+  getTiUsers,
+  assignResponsable
 } from '../controllers/excepcionesController.js';
 import { authenticateToken, requireAnyRole } from '../middleware/authMiddleware.js';
 
@@ -16,14 +18,21 @@ const createExcepcionValidation = [
   body('categoria').isIn(['FALLA_BACKUP', 'ACCESO_INAPROPIADO', 'INCIDENTE_SEGURIDAD', 'DISPONIBILIDAD', 'OTRO']).withMessage('Categoría inválida')
 ];
 
+const assignResponsableValidation = [
+  body('responsable_id').optional().isUUID().withMessage('ID de responsable inválido'),
+  body('fecha_limite').optional().isISO8601().withMessage('Fecha límite inválida')
+];
+
 // Todas las rutas requieren autenticación
 router.use(authenticateToken);
 
 // Rutas
 router.get('/', getExcepciones);
-router.post('/', requireAnyRole('TI', 'CONTROL_INTERNO', 'ADMIN'), createExcepcionValidation, createExcepcion);
+router.post('/', requireAnyRole('TI', 'ADMIN', 'CLINICO'), createExcepcionValidation, createExcepcion);
 router.patch('/:id', updateExcepcion);
-router.get('/estadisticas', requireAnyRole('TI', 'CONTROL_INTERNO', 'ADMIN'), getEstadisticas);
+router.get('/estadisticas', requireAnyRole('TI', 'ADMIN', 'CLINICO'), getEstadisticas);
+router.get('/ti-users', requireAnyRole('ADMIN'), getTiUsers);
+router.patch('/:id/assign', requireAnyRole('ADMIN'), assignResponsableValidation, assignResponsable);
 
 export default router;
 

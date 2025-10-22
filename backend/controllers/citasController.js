@@ -7,7 +7,7 @@ export const getCitas = async (req, res) => {
     const userRole = req.user.area;
 
     // Verificar permisos (RLS)
-    if (!['ADMISION', 'CLINICO', 'ADMIN'].includes(userRole)) {
+    if (!['CLINICO', 'ADMIN'].includes(userRole)) {
       return res.status(403).json({ error: 'No tiene permisos para ver citas' });
     }
 
@@ -35,8 +35,8 @@ export const createCita = async (req, res) => {
     const userRole = req.user.area;
 
     // Verificar permisos
-    if (!['ADMISION', 'ADMIN'].includes(userRole)) {
-      return res.status(403).json({ error: 'Solo el personal de admisión puede crear citas' });
+    if (!['CLINICO', 'ADMIN'].includes(userRole)) {
+      return res.status(403).json({ error: 'Solo el personal clínico y administradores pueden crear citas' });
     }
 
     // Validar DNI
@@ -89,11 +89,11 @@ export const createCita = async (req, res) => {
 export const updateCita = async (req, res) => {
   try {
     const { id } = req.params;
-    const { estado } = req.body;
+    const { estado, fecha_hora } = req.body;
     const userRole = req.user.area;
 
     // Verificar permisos
-    if (!['ADMISION', 'CLINICO', 'ADMIN'].includes(userRole)) {
+    if (!['CLINICO', 'ADMIN'].includes(userRole)) {
       return res.status(403).json({ error: 'No tiene permisos para actualizar citas' });
     }
 
@@ -107,15 +107,33 @@ export const updateCita = async (req, res) => {
       return res.status(404).json({ error: 'Cita no encontrada' });
     }
 
-    // Validar estado
-    if (!['PROGRAMADA', 'ATENDIDA', 'CANCELADA'].includes(estado)) {
+    // Validar estado si se proporciona
+    if (estado && !['PROGRAMADA', 'ATENDIDA', 'CANCELADA'].includes(estado)) {
       return res.status(400).json({ error: 'Estado inválido' });
     }
 
-    await pool.query(
-      'UPDATE citas_contingencia SET estado = ? WHERE id = ?',
-      [estado, id]
-    );
+    // Actualizar campos proporcionados
+    if (estado !== undefined && fecha_hora !== undefined) {
+      // Actualizar ambos campos
+      await pool.query(
+        'UPDATE citas_contingencia SET estado = ?, fecha_hora = ? WHERE id = ?',
+        [estado, fecha_hora, id]
+      );
+    } else if (estado !== undefined) {
+      // Solo actualizar estado
+      await pool.query(
+        'UPDATE citas_contingencia SET estado = ? WHERE id = ?',
+        [estado, id]
+      );
+    } else if (fecha_hora !== undefined) {
+      // Solo actualizar fecha_hora
+      await pool.query(
+        'UPDATE citas_contingencia SET fecha_hora = ? WHERE id = ?',
+        [fecha_hora, id]
+      );
+    } else {
+      return res.status(400).json({ error: 'No se proporcionaron campos para actualizar' });
+    }
 
     // Obtener la cita actualizada
     const [updatedCitas] = await pool.query(
@@ -139,7 +157,7 @@ export const exportCitas = async (req, res) => {
     const userRole = req.user.area;
 
     // Verificar permisos
-    if (!['ADMISION', 'ADMIN'].includes(userRole)) {
+    if (!['CLINICO', 'ADMIN'].includes(userRole)) {
       return res.status(403).json({ error: 'No tiene permisos para exportar citas' });
     }
 
@@ -176,8 +194,8 @@ export const getCitasDelDia = async (req, res) => {
     const userRole = req.user.area;
 
     // Verificar permisos
-    if (!['ADMISION', 'CLINICO', 'ADMIN'].includes(userRole)) {
-      return res.status(403).json({ error: 'No tiene permisos para ver citas' });
+    if (!['CLINICO', 'ADMIN'].includes(userRole)) {
+      return res.status(403).json({ error: 'No tiene permisos para ver citas del día' });
     }
 
     const [citas] = await pool.query(`

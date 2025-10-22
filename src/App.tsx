@@ -9,6 +9,7 @@ import ErrorBoundary from "./components/ErrorBoundary";
 import Dashboard from "./pages/Dashboard";
 import Excepciones from "./pages/Excepciones";
 import Contingencia from "./pages/Contingencia";
+import Usuarios from "./pages/Usuarios";
 import Auth from "./pages/Auth";
 import NotFound from "./pages/NotFound";
 
@@ -34,6 +35,7 @@ const App = () => (
             <Route path="/" element={<ProtectedRoute><Layout><Dashboard /></Layout></ProtectedRoute>} />
             <Route path="/excepciones" element={<ProtectedRoute><Layout><Excepciones /></Layout></ProtectedRoute>} />
             <Route path="/contingencia" element={<ProtectedRoute><Layout><Contingencia /></Layout></ProtectedRoute>} />
+            <Route path="/usuarios" element={<ProtectedRoute><Layout><Usuarios /></Layout></ProtectedRoute>} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </BrowserRouter>
