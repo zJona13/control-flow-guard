@@ -1,7 +1,7 @@
 import { ReactNode, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { cn } from "@/lib/utils";
-import { LayoutDashboard, AlertTriangle, Calendar, LogOut, Users, Moon, Sun, Menu, X } from "lucide-react";
+import { LayoutDashboard, AlertTriangle, Calendar, LogOut, Users, Moon, Sun, Menu, X, Building2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { toast } from "@/hooks/use-toast";
@@ -119,7 +119,7 @@ const Layout = ({ children }: LayoutProps) => {
                 <div className="flex h-16 items-center border-b px-4">
                   <div className="flex items-center gap-2">
                     <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary">
-                      <span className="text-xl font-bold text-primary-foreground">HL</span>
+                      <Building2 className="h-6 w-6 text-primary-foreground" />
                     </div>
                     <div>
                       <h2 className="text-sm font-bold text-foreground">Hospital Luis Heysen</h2>
@@ -135,7 +135,7 @@ const Layout = ({ children }: LayoutProps) => {
 
             <div className="flex items-center gap-2">
               <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary">
-                <span className="text-xl font-bold text-primary-foreground">HL</span>
+                <Building2 className="h-6 w-6 text-primary-foreground" />
               </div>
               <div className="hidden sm:block">
                 <h1 className="text-base lg:text-lg font-bold text-foreground">Hospital Luis Heysen de EsSalud</h1>

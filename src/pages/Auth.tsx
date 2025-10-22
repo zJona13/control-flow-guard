@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "@/hooks/use-toast";
-import { Loader2 } from "lucide-react";
+import { Building2, Loader2 } from "lucide-react";
 import { z } from "zod";
 
 const emailSchema = z.string()
@@ -16,7 +16,7 @@ const emailSchema = z.string()
 
 const passwordSchema = z.string().min(6, "La contraseña debe tener al menos 6 caracteres").max(100, "Contraseña demasiado larga");
 
-type UserRole = "ADMIN" | "TI" | "CONTROL_INTERNO" | "ADMISION" | "CLINICO";
+type UserRole = "ADMIN" | "TI" | "CLINICO";
 
 const Auth = () => {
   const navigate = useNavigate();
@@ -84,7 +84,7 @@ const Auth = () => {
           variant: "destructive",
         });
       } else if (typeof err === 'object' && err !== null && 'response' in err) {
-        const error = err as any;
+        const error = err as { response?: { data?: { error?: string } } };
         toast({
           title: "Error al registrar",
           description: error.response?.data?.error || "Error al registrar usuario",
@@ -128,7 +128,7 @@ const Auth = () => {
           variant: "destructive",
         });
       } else if (typeof err === 'object' && err !== null && 'response' in err) {
-        const error = err as any;
+        const error = err as { response?: { data?: { error?: string } } };
         const errorMessage = error.response?.data?.error || "Error al iniciar sesión";
         
         toast({
@@ -154,7 +154,7 @@ const Auth = () => {
         <CardHeader>
           <div className="flex items-center justify-center gap-2 mb-4">
             <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-primary">
-              <span className="text-2xl font-bold text-primary-foreground">HL</span>
+              <Building2 className="h-6 w-6 text-primary-foreground" />
             </div>
           </div>
           <CardTitle className="text-center">Hospital Luis Heysen de EsSalud</CardTitle>
@@ -224,8 +224,6 @@ const Auth = () => {
                   <SelectContent>
                     <SelectItem value="ADMIN">Administrador</SelectItem>
                     <SelectItem value="TI">Tecnología de Información</SelectItem>
-                    <SelectItem value="CONTROL_INTERNO">Control Interno</SelectItem>
-                    <SelectItem value="ADMISION">Personal de Admisión</SelectItem>
                     <SelectItem value="CLINICO">Personal Clínico</SelectItem>
                   </SelectContent>
                 </Select>
