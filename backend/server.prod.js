@@ -35,10 +35,12 @@ app.get('/', (req, res) => {
   res.json({ 
     message: 'API Control Flow Guard',
     version: '1.0.0',
+    environment: process.env.NODE_ENV || 'development',
     endpoints: {
       auth: '/api/auth',
       excepciones: '/api/excepciones',
-      citas: '/api/citas'
+      citas: '/api/citas',
+      health: '/api/health'
     }
   });
 });
@@ -62,11 +64,14 @@ app.use((err, req, res, next) => {
 });
 
 // Iniciar servidor
-app.listen(PORT, () => {
-  console.log(`\n🚀 Servidor corriendo en http://localhost:${PORT}`);
-  console.log(`📊 Base de datos: MySQL en Laragon`);
+app.listen(PORT, '0.0.0.0', () => {
+  console.log(`\n🚀 Servidor corriendo en puerto ${PORT}`);
+  console.log(`🌍 Accesible desde: http://0.0.0.0:${PORT}`);
+  console.log(`📊 Base de datos: ${process.env.DB_HOST || 'localhost'}`);
   console.log(`🔐 JWT autenticación habilitada`);
+  console.log(`🌐 Entorno: ${process.env.NODE_ENV || 'development'}`);
   console.log(`\nEndpoints disponibles:`);
+  console.log(`  GET    /api/health`);
   console.log(`  POST   /api/auth/register`);
   console.log(`  POST   /api/auth/login`);
   console.log(`  GET    /api/auth/profile`);
@@ -82,4 +87,3 @@ app.listen(PORT, () => {
 });
 
 export default app;
-
