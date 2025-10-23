@@ -467,6 +467,7 @@ const Contingencia = () => {
       
       await citasAPI.update(editingAppointment.id, {
         estado: editingAppointment.estado,
+        fecha_hora: fechaHoraFormatted,
       });
       
       toast({

@@ -7,17 +7,28 @@ export const getExcepciones = async (req, res) => {
     const userRole = req.user.area;
     const userId = req.user.id;
 
-    let query = 'SELECT * FROM control_excepciones';
+    let query = `
+      SELECT 
+        ce.*,
+        u_responsable.nombres as responsable_nombres,
+        u_responsable.apellidos as responsable_apellidos,
+        u_responsable.email as responsable_email,
+        u_creador.nombres as creador_nombres,
+        u_creador.apellidos as creador_apellidos
+      FROM control_excepciones ce
+      LEFT JOIN usuarios u_responsable ON ce.responsable_id = u_responsable.id
+      LEFT JOIN usuarios u_creador ON ce.creado_por = u_creador.id
+    `;
     let queryParams = [];
 
     // Filtro RLS según rol
     if (!['TI', 'ADMIN'].includes(userRole)) {
       // Si no es TI o ADMIN, solo puede ver sus propias excepciones
-      query += ' WHERE creado_por = ? OR responsable_id = ?';
+      query += ' WHERE ce.creado_por = ? OR ce.responsable_id = ?';
       queryParams = [userId, userId];
     }
 
-    query += ' ORDER BY creado_en DESC';
+    query += ' ORDER BY ce.creado_en DESC';
 
     const [excepciones] = await pool.query(query, queryParams);
     res.json(excepciones);

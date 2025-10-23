@@ -23,7 +23,12 @@ interface Exception {
   categoria: ExceptionCategory;
   estado: ExceptionStatus;
   responsable_id: string | null;
+  responsable_nombres?: string | null;
+  responsable_apellidos?: string | null;
+  responsable_email?: string | null;
   creado_por: string;
+  creador_nombres?: string;
+  creador_apellidos?: string;
   fecha_limite: string | null;
   creado_en: string;
   causa_raiz: string | null;
@@ -412,6 +417,23 @@ const Excepciones = () => {
                     <p className="text-sm text-foreground">{getStatusLabel(exception.estado)}</p>
                   </div>
                 </div>
+                
+                {/* Mostrar información del responsable TI */}
+                {exception.responsable_id && (
+                  <div className="mt-4">
+                    <p className="text-sm font-medium text-muted-foreground">Responsable TI Asignado</p>
+                    <p className="text-sm text-foreground">
+                      {exception.responsable_nombres && exception.responsable_apellidos 
+                        ? `${exception.responsable_nombres} ${exception.responsable_apellidos}`
+                        : 'Usuario de TI asignado'
+                      }
+                      {exception.responsable_email && (
+                        <span className="text-muted-foreground"> ({exception.responsable_email})</span>
+                      )}
+                    </p>
+                  </div>
+                )}
+                
                 {exception.causa_raiz && (
                   <div className="mt-4">
                     <p className="text-sm font-medium text-muted-foreground">Causa Raíz</p>

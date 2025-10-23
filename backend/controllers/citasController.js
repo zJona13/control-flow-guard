@@ -113,27 +113,28 @@ export const updateCita = async (req, res) => {
     }
 
     // Actualizar campos proporcionados
-    if (estado !== undefined && fecha_hora !== undefined) {
-      // Actualizar ambos campos
-      await pool.query(
-        'UPDATE citas_contingencia SET estado = ?, fecha_hora = ? WHERE id = ?',
-        [estado, fecha_hora, id]
-      );
-    } else if (estado !== undefined) {
-      // Solo actualizar estado
-      await pool.query(
-        'UPDATE citas_contingencia SET estado = ? WHERE id = ?',
-        [estado, id]
-      );
-    } else if (fecha_hora !== undefined) {
-      // Solo actualizar fecha_hora
-      await pool.query(
-        'UPDATE citas_contingencia SET fecha_hora = ? WHERE id = ?',
-        [fecha_hora, id]
-      );
-    } else {
+    const updates = [];
+    const params = [];
+
+    if (estado !== undefined) {
+      updates.push('estado = ?');
+      params.push(estado);
+    }
+
+    if (fecha_hora !== undefined) {
+      updates.push('fecha_hora = ?');
+      params.push(fecha_hora);
+    }
+
+    if (updates.length === 0) {
       return res.status(400).json({ error: 'No se proporcionaron campos para actualizar' });
     }
+
+    params.push(id);
+    await pool.query(
+      `UPDATE citas_contingencia SET ${updates.join(', ')} WHERE id = ?`,
+      params
+    );
 
     // Obtener la cita actualizada
     const [updatedCitas] = await pool.query(

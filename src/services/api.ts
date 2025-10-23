@@ -60,7 +60,12 @@ export interface Exception {
   categoria: string;
   estado: string;
   responsable_id: string | null;
+  responsable_nombres?: string | null;
+  responsable_apellidos?: string | null;
+  responsable_email?: string | null;
   creado_por: string;
+  creador_nombres?: string;
+  creador_apellidos?: string;
   fecha_limite: string | null;
   creado_en: string;
   causa_raiz: string | null;
@@ -200,7 +205,7 @@ export const citasAPI = {
 
   update: async (
     id: number,
-    data: { estado: string }
+    data: { estado: string; fecha_hora?: string }
   ): Promise<{ message: string; cita: Appointment }> => {
     const response = await api.patch(`/api/citas/${id}`, data);
     return response.data;
