@@ -77,7 +77,8 @@ export interface Appointment {
   nombre_completo: string;
   servicio: string;
   medico_asignado: string;
-  fecha_hora: string;
+  fecha: string;
+  hora: string;
   estado: string;
   creado_en: string;
 }
@@ -197,7 +198,8 @@ export const citasAPI = {
     nombre_completo: string;
     servicio: string;
     medico_asignado: string;
-    fecha_hora: string;
+    fecha: string;
+    hora: string;
   }): Promise<{ message: string; cita: Appointment }> => {
     const response = await api.post('/api/citas', data);
     return response.data;
@@ -205,7 +207,7 @@ export const citasAPI = {
 
   update: async (
     id: number,
-    data: { estado: string; fecha_hora?: string }
+    data: { estado: string; fecha?: string; hora?: string }
   ): Promise<{ message: string; cita: Appointment }> => {
     const response = await api.patch(`/api/citas/${id}`, data);
     return response.data;

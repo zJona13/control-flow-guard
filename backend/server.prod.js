@@ -187,13 +187,15 @@ async function initializeDatabase() {
           nombre_completo VARCHAR(200) NOT NULL,
           servicio VARCHAR(100) NOT NULL,
           medico_asignado VARCHAR(100) NOT NULL,
-          fecha_hora DATETIME NOT NULL,
+          fecha DATE NOT NULL,
+          hora TIME NOT NULL,
           estado ENUM('PROGRAMADA','ATENDIDA','CANCELADA') NOT NULL DEFAULT 'PROGRAMADA',
           creado_por CHAR(36) NOT NULL,
           creado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
           actualizado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
           FOREIGN KEY (creado_por) REFERENCES usuarios(id) ON DELETE RESTRICT,
-          INDEX idx_citas_fecha_hora (fecha_hora),
+          INDEX idx_citas_fecha (fecha),
+          INDEX idx_citas_hora (hora),
           INDEX idx_citas_servicio (servicio)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 

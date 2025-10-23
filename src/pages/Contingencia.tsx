@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
-import { citasAPI } from "@/services/api";
+import { citasAPI, Appointment } from "@/services/api";
 import { useAuth } from "@/hooks/useAuth";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -14,69 +14,17 @@ import { AlertCircle, Calendar, Download, Plus, Loader2, CheckCircle, XCircle, C
 import { toast } from "@/hooks/use-toast";
 import { z } from "zod";
 
-interface Appointment {
-  id: number;
-  dni: string;
-  nombre_completo: string;
-  servicio: string;
-  medico_asignado: string;
-  fecha_hora: string;
-  estado: string;
-  creado_en: string;
-}
 
 const dniSchema = z.string().regex(/^\d{8}$/, "DNI debe tener 8 dígitos");
 const nameSchema = z.string().min(3, "Nombre muy corto").max(100, "Nombre muy largo");
 
 // Helper functions para manejar fechas de manera segura
-const parseDateTime = (dateTimeString: string): Date => {
-  // Si la fecha viene del backend como 'YYYY-MM-DD HH:MM:SS', la convertimos a ISO
-  if (dateTimeString.includes(' ') && !dateTimeString.includes('T')) {
-    return new Date(dateTimeString.replace(' ', 'T'));
-  }
-  // Si ya es ISO o tiene Z, la usamos directamente
-  return new Date(dateTimeString);
-};
-
-// Helper function para formatear fecha para input date
-const formatDateForInput = (dateTimeString: string): string => {
+const formatTimeForDisplay = (timeString: string): string => {
   try {
-    const date = parseDateTime(dateTimeString);
-    return date.toISOString().split('T')[0];
-  } catch (error) {
-    console.error('Error formatting date:', error);
-    return new Date().toISOString().split('T')[0];
-  }
-};
-
-// Helper function para formatear hora para input time
-const formatTimeForInput = (dateTimeString: string): string => {
-  try {
-    const date = parseDateTime(dateTimeString);
-    return date.toTimeString().slice(0, 5);
-  } catch (error) {
-    console.error('Error formatting time:', error);
-    return '00:00';
-  }
-};
-
-// Helper function para mostrar hora en la interfaz sin conversión de zona horaria
-const formatTimeForDisplay = (dateTimeString: string): string => {
-  try {
-    // Si la fecha viene del backend como 'YYYY-MM-DD HH:MM:SS', extraemos la hora directamente
-    if (dateTimeString.includes(' ') && !dateTimeString.includes('T')) {
-      const timePart = dateTimeString.split(' ')[1];
-      const [hours, minutes] = timePart.split(':');
-      const date = new Date();
-      date.setHours(parseInt(hours), parseInt(minutes), 0, 0);
-      return date.toLocaleTimeString("es-PE", { 
-        hour: '2-digit', 
-        minute: '2-digit',
-        hour12: true
-      });
-    }
-    // Si es formato ISO, usamos parseDateTime
-    const date = parseDateTime(dateTimeString);
+    // timeString viene en formato 'HH:MM'
+    const [hours, minutes] = timeString.split(':');
+    const date = new Date();
+    date.setHours(parseInt(hours), parseInt(minutes), 0, 0);
     return date.toLocaleTimeString("es-PE", { 
       hour: '2-digit', 
       minute: '2-digit',
@@ -86,6 +34,11 @@ const formatTimeForDisplay = (dateTimeString: string): string => {
     console.error('Error formatting time for display:', error);
     return '00:00';
   }
+};
+
+// Helper function para combinar fecha y hora en un objeto Date
+const combineDateTime = (fecha: string, hora: string): Date => {
+  return new Date(`${fecha}T${hora}:00`);
 };
 
 // Helper component for calendar day cells
@@ -195,7 +148,7 @@ const DayCell = ({
                   </div>
                   <div className="flex items-center gap-2 text-xs text-muted-foreground">
                     <Clock className="h-3 w-3" />
-                    {formatTimeForDisplay(appointment.fecha_hora)}
+                    {formatTimeForDisplay(appointment.hora)}
                   </div>
                   <p className="text-xs text-muted-foreground">{appointment.servicio}</p>
                   <p className="text-xs text-muted-foreground">{appointment.medico_asignado}</p>
@@ -347,20 +300,19 @@ const Contingencia = () => {
 
       setCreating(true);
 
-      // Crear fecha y hora combinada sin conversión de zona horaria
-      const fechaHora = new Date(`${newAppointment.date}T${newAppointment.time}:00`);
-
       await citasAPI.create({
         dni: newAppointment.dni,
         nombre_completo: newAppointment.fullName,
         servicio: newAppointment.service,
         medico_asignado: newAppointment.doctor,
-        fecha_hora: fechaHora.toISOString(),
+        fecha: newAppointment.date,
+        hora: newAppointment.time,
       });
 
+      const fechaHora = combineDateTime(newAppointment.date, newAppointment.time);
       toast({
         title: "Cita registrada exitosamente",
-        description: `Cita programada para ${newAppointment.fullName} el ${fechaHora.toLocaleDateString("es-PE")} a las ${formatTimeForDisplay(fechaHora.toISOString())}`,
+        description: `Cita programada para ${newAppointment.fullName} el ${fechaHora.toLocaleDateString("es-PE")} a las ${formatTimeForDisplay(newAppointment.time)}`,
       });
 
       setIsDialogOpen(false);
@@ -470,8 +422,9 @@ const Contingencia = () => {
 
   // Helper function to get appointments for a specific date
   const getAppointmentsForDate = (date: Date): Appointment[] => {
+    const dateString = date.toISOString().split('T')[0]; // YYYY-MM-DD format
     return appointments.filter(
-      (apt) => new Date(apt.fecha_hora).toDateString() === date.toDateString()
+      (apt) => apt.fecha === dateString
     );
   };
 
@@ -516,24 +469,10 @@ const Contingencia = () => {
     try {
       setEditing(true);
       
-      // Convertir fecha ISO a formato MySQL (YYYY-MM-DD HH:MM:SS)
-      let fechaHoraFormatted;
-      try {
-        const date = parseDateTime(editingAppointment.fecha_hora);
-        fechaHoraFormatted = date.toISOString().replace('T', ' ').replace('Z', '').slice(0, 19);
-      } catch (error) {
-        console.error('Error parsing date:', error);
-        toast({
-          title: "Error",
-          description: "Fecha o hora inválida",
-          variant: "destructive",
-        });
-        return;
-      }
-      
       await citasAPI.update(editingAppointment.id, {
         estado: editingAppointment.estado,
-        fecha_hora: fechaHoraFormatted,
+        fecha: editingAppointment.fecha,
+        hora: editingAppointment.hora,
       });
       
       toast({
@@ -711,7 +650,7 @@ const Contingencia = () => {
                           </div>
                           <div className="flex items-center justify-between">
                             <div className="text-xs text-muted-foreground">
-                              {formatTimeForDisplay(appointment.fecha_hora)}
+                              {formatTimeForDisplay(appointment.hora)}
                             </div>
                             {(user?.area === 'ADMIN' || user?.area === 'CLINICO') && (
                               <Button
@@ -838,19 +777,12 @@ const Contingencia = () => {
                   <Label>Fecha</Label>
                   <Input
                     type="date"
-                    value={formatDateForInput(editingAppointment.fecha_hora)}
+                    value={editingAppointment.fecha}
                     onChange={(e) => {
-                      try {
-                        const currentDate = parseDateTime(editingAppointment.fecha_hora);
-                        const [year, month, day] = e.target.value.split('-');
-                        currentDate.setFullYear(parseInt(year), parseInt(month) - 1, parseInt(day));
-                        setEditingAppointment({
-                          ...editingAppointment,
-                          fecha_hora: currentDate.toISOString()
-                        });
-                      } catch (error) {
-                        console.error('Error updating date:', error);
-                      }
+                      setEditingAppointment({
+                        ...editingAppointment,
+                        fecha: e.target.value
+                      });
                     }}
                     disabled={editing}
                     min={new Date().toISOString().split('T')[0]}
@@ -860,19 +792,12 @@ const Contingencia = () => {
                   <Label>Hora</Label>
                   <Input
                     type="time"
-                    value={formatTimeForInput(editingAppointment.fecha_hora)}
+                    value={editingAppointment.hora}
                     onChange={(e) => {
-                      try {
-                        const currentDate = parseDateTime(editingAppointment.fecha_hora);
-                        const [hours, minutes] = e.target.value.split(':');
-                        currentDate.setHours(parseInt(hours), parseInt(minutes));
-                        setEditingAppointment({
-                          ...editingAppointment,
-                          fecha_hora: currentDate.toISOString()
-                        });
-                      } catch (error) {
-                        console.error('Error updating time:', error);
-                      }
+                      setEditingAppointment({
+                        ...editingAppointment,
+                        hora: e.target.value
+                      });
                     }}
                     disabled={editing}
                   />

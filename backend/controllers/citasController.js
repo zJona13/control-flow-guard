@@ -30,7 +30,7 @@ export const createCita = async (req, res) => {
       return res.status(400).json({ errors: errors.array() });
     }
 
-    const { dni, nombre_completo, servicio, medico_asignado, fecha_hora } = req.body;
+    const { dni, nombre_completo, servicio, medico_asignado, fecha, hora } = req.body;
     const creadoPor = req.user.id;
     const userRole = req.user.area;
 
@@ -45,28 +45,23 @@ export const createCita = async (req, res) => {
     }
 
     // Validar que la fecha no sea en el pasado
-    const fechaCita = new Date(fecha_hora);
+    const fechaCita = new Date(`${fecha}T${hora}`);
     if (fechaCita < new Date()) {
       return res.status(400).json({ error: 'No se pueden programar citas en fechas pasadas' });
     }
 
-    // Convertir fecha ISO a formato MySQL DATETIME (YYYY-MM-DD HH:MM:SS)
-    const formatDateForMySQL = (isoString) => {
-      const date = new Date(isoString);
-      const year = date.getFullYear();
-      const month = String(date.getMonth() + 1).padStart(2, '0');
-      const day = String(date.getDate()).padStart(2, '0');
-      const hours = String(date.getHours()).padStart(2, '0');
-      const minutes = String(date.getMinutes()).padStart(2, '0');
-      const seconds = String(date.getSeconds()).padStart(2, '0');
-      return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
-    };
+    // Validar formato de fecha y hora
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(fecha)) {
+      return res.status(400).json({ error: 'Formato de fecha inválido. Use YYYY-MM-DD' });
+    }
 
-    const fechaHoraMysql = formatDateForMySQL(fecha_hora);
+    if (!/^\d{2}:\d{2}$/.test(hora)) {
+      return res.status(400).json({ error: 'Formato de hora inválido. Use HH:MM' });
+    }
 
     const [result] = await pool.query(
-      'INSERT INTO citas_contingencia (dni, nombre_completo, servicio, medico_asignado, fecha_hora, estado, creado_por) VALUES (?, ?, ?, ?, ?, ?, ?)',
-      [dni, nombre_completo, servicio, medico_asignado, fechaHoraMysql, 'PROGRAMADA', creadoPor]
+      'INSERT INTO citas_contingencia (dni, nombre_completo, servicio, medico_asignado, fecha, hora, estado, creado_por) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+      [dni, nombre_completo, servicio, medico_asignado, fecha, hora, 'PROGRAMADA', creadoPor]
     );
 
     // Obtener la cita creada
@@ -89,7 +84,7 @@ export const createCita = async (req, res) => {
 export const updateCita = async (req, res) => {
   try {
     const { id } = req.params;
-    const { estado, fecha_hora } = req.body;
+    const { estado, fecha, hora } = req.body;
     const userRole = req.user.area;
 
     // Verificar permisos
@@ -112,6 +107,16 @@ export const updateCita = async (req, res) => {
       return res.status(400).json({ error: 'Estado inválido' });
     }
 
+    // Validar formato de fecha si se proporciona
+    if (fecha && !/^\d{4}-\d{2}-\d{2}$/.test(fecha)) {
+      return res.status(400).json({ error: 'Formato de fecha inválido. Use YYYY-MM-DD' });
+    }
+
+    // Validar formato de hora si se proporciona
+    if (hora && !/^\d{2}:\d{2}$/.test(hora)) {
+      return res.status(400).json({ error: 'Formato de hora inválido. Use HH:MM' });
+    }
+
     // Actualizar campos proporcionados
     const updates = [];
     const params = [];
@@ -121,9 +126,14 @@ export const updateCita = async (req, res) => {
       params.push(estado);
     }
 
-    if (fecha_hora !== undefined) {
-      updates.push('fecha_hora = ?');
-      params.push(fecha_hora);
+    if (fecha !== undefined) {
+      updates.push('fecha = ?');
+      params.push(fecha);
+    }
+
+    if (hora !== undefined) {
+      updates.push('hora = ?');
+      params.push(hora);
     }
 
     if (updates.length === 0) {
@@ -163,18 +173,19 @@ export const exportCitas = async (req, res) => {
     }
 
     const [citas] = await pool.query(
-      'SELECT * FROM citas_contingencia ORDER BY fecha_hora'
+      'SELECT * FROM citas_contingencia ORDER BY fecha, hora'
     );
 
     // Convertir a CSV
-    const headers = ['ID', 'DNI', 'Nombre Completo', 'Servicio', 'Médico', 'Fecha y Hora', 'Estado'];
+    const headers = ['ID', 'DNI', 'Nombre Completo', 'Servicio', 'Médico', 'Fecha', 'Hora', 'Estado'];
     const rows = citas.map(cita => [
       cita.id,
       cita.dni,
       cita.nombre_completo,
       cita.servicio,
       cita.medico_asignado,
-      cita.fecha_hora,
+      cita.fecha,
+      cita.hora,
       cita.estado
     ]);
 
@@ -201,8 +212,8 @@ export const getCitasDelDia = async (req, res) => {
 
     const [citas] = await pool.query(`
       SELECT * FROM citas_contingencia
-      WHERE DATE(fecha_hora) = CURDATE()
-      ORDER BY fecha_hora
+      WHERE fecha = CURDATE()
+      ORDER BY hora
     `);
 
     res.json(citas);
