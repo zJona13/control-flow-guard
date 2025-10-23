@@ -187,11 +187,16 @@ export const getEstadisticas = async (req, res) => {
       LIMIT 5
     `);
 
-    // Excepciones recientes
+    // Excepciones recientes con información del responsable TI
     const [recientes] = await pool.query(`
-      SELECT *
-      FROM control_excepciones
-      ORDER BY creado_en DESC
+      SELECT 
+        ce.*,
+        u_responsable.nombres as responsable_nombres,
+        u_responsable.apellidos as responsable_apellidos,
+        u_responsable.email as responsable_email
+      FROM control_excepciones ce
+      LEFT JOIN usuarios u_responsable ON ce.responsable_id = u_responsable.id
+      ORDER BY ce.creado_en DESC
       LIMIT 10
     `);
 

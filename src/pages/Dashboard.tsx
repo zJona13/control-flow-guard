@@ -15,6 +15,10 @@ interface Exception {
   estado: string;
   creado_en: string;
   fecha_limite: string | null;
+  responsable_id: string | null;
+  responsable_nombres?: string | null;
+  responsable_apellidos?: string | null;
+  responsable_email?: string | null;
 }
 
 interface Appointment {
@@ -23,7 +27,8 @@ interface Appointment {
   nombre_completo: string;
   servicio: string;
   medico_asignado: string;
-  fecha_hora: string;
+  fecha: string;
+  hora: string;
   estado: string;
   creado_en: string;
 }
@@ -62,7 +67,7 @@ const Dashboard = () => {
             programadas: citas.filter(c => c.estado === 'PROGRAMADA').length,
             atendidas: citas.filter(c => c.estado === 'ATENDIDA').length,
             canceladas: citas.filter(c => c.estado === 'CANCELADA').length,
-            hoy: citas.filter(c => c.fecha_hora.startsWith(hoy)).length,
+            hoy: citas.filter(c => c.fecha === hoy).length,
           };
           
           setAppointmentStats(stats);
@@ -231,7 +236,9 @@ const Dashboard = () => {
     id: exc.id.toString(),
     description: exc.descripcion,
     status: exc.estado,
-    days: Math.floor((new Date().getTime() - new Date(exc.creado_en).getTime()) / (1000 * 60 * 60 * 24)),
+    responsable: exc.responsable_nombres && exc.responsable_apellidos 
+      ? `${exc.responsable_nombres} ${exc.responsable_apellidos}` 
+      : exc.responsable_id ? 'Usuario TI Asignado' : 'Sin Asignar',
   }));
 
   function getCategoryLabel(category: string) {
@@ -388,7 +395,7 @@ const Dashboard = () => {
                           </div>
                           <p className="mt-1 text-xs text-muted-foreground">{exception.description}</p>
                           <p className="mt-1 text-xs text-muted-foreground">
-                            <Clock className="inline h-3 w-3" /> {exception.days} días
+                            <Users className="inline h-3 w-3" /> {exception.responsable}
                           </p>
                         </div>
                       </div>
@@ -410,41 +417,87 @@ const Dashboard = () => {
           </>
         ) : (
           <>
-            {/* Top 5 Issues */}
-            <Card>
-              <CardHeader>
-                <CardTitle>Top 5 Tipos de Fallas</CardTitle>
-                <CardDescription>Análisis de causa raíz - MEA02.03.3</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-3">
-                  {topIssues.length > 0 ? (
-                    topIssues.map((issue, index) => (
-                      <div key={index} className="flex items-center justify-between rounded-lg border p-3">
-                        <div className="flex-1">
-                          <p className="text-sm font-medium text-foreground">{issue.type}</p>
-                          <p className="text-xs text-muted-foreground">{issue.count} ocurrencias</p>
-                        </div>
-                        <Badge variant={getSeverityColor(issue.severity) as "destructive" | "warning" | "secondary"}>
-                          {issue.severity === "critical" && "Crítico"}
-                          {issue.severity === "high" && "Alto"}
-                          {issue.severity === "medium" && "Medio"}
-                          {issue.severity === "low" && "Bajo"}
-                        </Badge>
+            {/* Sección específica para TI */}
+            {user?.area === 'TI' ? (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Activity className="h-5 w-5" />
+                    Mis Tickets Asignados
+                  </CardTitle>
+                  <CardDescription>Tickets asignados a mi usuario</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-3">
+                    {estadisticas.recientes.filter(exc => exc.responsable_id === user?.id).length > 0 ? (
+                      estadisticas.recientes
+                        .filter(exc => exc.responsable_id === user?.id)
+                        .slice(0, 5)
+                        .map((ticket) => (
+                          <div key={ticket.id} className="flex items-start justify-between rounded-lg border p-3">
+                            <div className="flex-1">
+                              <div className="flex items-center gap-2">
+                                <p className="text-sm font-medium text-primary">#{ticket.id}</p>
+                                <Badge variant={getStatusColor(ticket.estado) as "destructive" | "warning" | "success" | "secondary"} className="text-xs">
+                                  {getStatusText(ticket.estado)}
+                                </Badge>
+                              </div>
+                              <p className="mt-1 text-xs text-muted-foreground">{ticket.descripcion}</p>
+                              <p className="mt-1 text-xs text-muted-foreground">
+                                {getCategoryLabel(ticket.categoria)}
+                              </p>
+                            </div>
+                          </div>
+                        ))
+                    ) : (
+                      <div className="text-center py-4">
+                        <p className="text-muted-foreground">No tienes tickets asignados</p>
                       </div>
-                    ))
-                  ) : (
-                    <p className="text-center text-muted-foreground py-4">No hay datos disponibles</p>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+            ) : (
+              /* Top 5 Issues para ADMIN */
+              <Card>
+                <CardHeader>
+                  <CardTitle>Top 5 Tipos de Fallas</CardTitle>
+                  <CardDescription>Análisis de causa raíz - MEA02.03.3</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-3">
+                    {topIssues.length > 0 ? (
+                      topIssues.map((issue, index) => (
+                        <div key={index} className="flex items-center justify-between rounded-lg border p-3">
+                          <div className="flex-1">
+                            <p className="text-sm font-medium text-foreground">{issue.type}</p>
+                            <p className="text-xs text-muted-foreground">{issue.count} ocurrencias</p>
+                          </div>
+                          <Badge variant={getSeverityColor(issue.severity) as "destructive" | "warning" | "secondary"}>
+                            {issue.severity === "critical" && "Crítico"}
+                            {issue.severity === "high" && "Alto"}
+                            {issue.severity === "medium" && "Medio"}
+                            {issue.severity === "low" && "Bajo"}
+                          </Badge>
+                        </div>
+                      ))
+                    ) : (
+                      <p className="text-center text-muted-foreground py-4">No hay datos disponibles</p>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+            )}
 
             {/* Recent Exceptions */}
             <Card>
               <CardHeader>
-                <CardTitle>Excepciones Recientes</CardTitle>
-                <CardDescription>Últimas excepciones registradas</CardDescription>
+                <CardTitle>
+                  {user?.area === 'TI' ? 'Tickets Recientes' : 'Excepciones Recientes'}
+                </CardTitle>
+                <CardDescription>
+                  {user?.area === 'TI' ? 'Últimos tickets del sistema' : 'Últimas excepciones registradas'}
+                </CardDescription>
               </CardHeader>
               <CardContent>
                 <div className="space-y-3">
@@ -460,7 +513,7 @@ const Dashboard = () => {
                           </div>
                           <p className="mt-1 text-xs text-muted-foreground">{exception.description}</p>
                           <p className="mt-1 text-xs text-muted-foreground">
-                            <Clock className="inline h-3 w-3" /> {exception.days} días
+                            <Users className="inline h-3 w-3" /> {exception.responsable}
                           </p>
                         </div>
                       </div>
