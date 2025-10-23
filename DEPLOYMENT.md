@@ -110,7 +110,20 @@ VITE_API_URL=https://tu-backend.railway.app
 - Selecciona tu servicio backend
 - Haz clic en la pestaña "Deployments"
 - Haz clic en el deployment más reciente
-- Haz clic en "View Logs" y luego "Open Shell"
+- Haz clic en "View Logs"
+- En la parte superior derecha de los logs, busca el ícono de terminal (⚡) o "Shell"
+- Haz clic en "Open Shell" o "Terminal"
+
+**Alternativa**: Si no encuentras "Open Shell":
+- Ve a la pestaña "Settings" de tu servicio
+- Busca la sección "Deploy" 
+- Haz clic en "Redeploy" y durante el proceso podrás acceder al terminal
+
+**Nota**: La interfaz de Railway cambia frecuentemente. Si no encuentras el terminal:
+1. Busca un ícono de terminal (⚡) en la parte superior de los logs
+2. Busca un botón "Shell" o "Terminal" 
+3. Algunas versiones tienen el terminal en la pestaña "Deployments" → "View Logs" → ícono de terminal
+4. Si nada funciona, usa el método automático de abajo
 
 ### 3.2 Ejecutar script de inicialización
 En el terminal de Railway, ejecuta:
@@ -123,7 +136,18 @@ Esto creará:
 - ✅ Usuario administrador inicial
 - ✅ Datos de ejemplo
 
-### 3.3 Verificar que funcionó
+### 3.3 Método Alternativo: Inicialización Automática
+Si no puedes acceder al terminal, Railway puede inicializar la base de datos automáticamente:
+
+1. Ve a la pestaña "Variables" de tu servicio backend
+2. Agrega esta variable de entorno:
+   ```env
+   AUTO_INIT_DB=true
+   ```
+3. Haz clic en "Redeploy" para aplicar los cambios
+4. Railway ejecutará automáticamente el script de inicialización
+
+### 3.4 Verificar que funcionó
 Deberías ver mensajes como:
 ```
 ✅ Base de datos inicializada correctamente

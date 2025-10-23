@@ -63,13 +63,41 @@ app.use((err, req, res, next) => {
   });
 });
 
+// Función para inicializar la base de datos automáticamente
+async function initializeDatabase() {
+  if (process.env.AUTO_INIT_DB === 'true') {
+    console.log('🔄 Inicializando base de datos automáticamente...');
+    try {
+      const { spawn } = await import('child_process');
+      const initProcess = spawn('npm', ['run', 'db:init'], { 
+        stdio: 'inherit',
+        shell: true 
+      });
+      
+      initProcess.on('close', (code) => {
+        if (code === 0) {
+          console.log('✅ Base de datos inicializada automáticamente');
+        } else {
+          console.log('⚠️ Error al inicializar base de datos automáticamente');
+        }
+      });
+    } catch (error) {
+      console.log('⚠️ No se pudo inicializar la base de datos automáticamente:', error.message);
+    }
+  }
+}
+
 // Iniciar servidor
-app.listen(PORT, '0.0.0.0', () => {
+app.listen(PORT, '0.0.0.0', async () => {
   console.log(`\n🚀 Servidor corriendo en puerto ${PORT}`);
   console.log(`🌍 Accesible desde: http://0.0.0.0:${PORT}`);
   console.log(`📊 Base de datos: ${process.env.DB_HOST || 'localhost'}`);
   console.log(`🔐 JWT autenticación habilitada`);
   console.log(`🌐 Entorno: ${process.env.NODE_ENV || 'development'}`);
+  
+  // Inicializar base de datos si está configurado
+  await initializeDatabase();
+  
   console.log(`\nEndpoints disponibles:`);
   console.log(`  GET    /api/health`);
   console.log(`  POST   /api/auth/register`);
