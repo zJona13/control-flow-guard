@@ -1,139 +1,254 @@
 # 🚀 Guía de Despliegue - Control Flow Guard
 
-Esta guía te ayudará a desplegar tu aplicación de forma gratuita para presentaciones.
+Esta guía te ayudará a desplegar tu aplicación de forma gratuita para presentaciones paso a paso.
 
 ## 📋 Opciones de Despliegue Gratuito
 
-### 🎯 Recomendado para Presentaciones
+### 🎯 RECOMENDADO para Presentaciones
 
 **Frontend**: Vercel (gratuito, perfecto para React)
 **Backend**: Railway (gratuito con límites generosos)
-**Base de datos**: MySQL en Railway
+**Base de datos**: MySQL automática en Railway
 
-## 🔧 Pasos para Desplegar
+---
 
-### 1. Preparar el Repositorio
+## 🔧 PASOS DETALLADOS PARA DESPLEGAR
 
-```bash
-# Asegúrate de que todo esté committeado
-git add .
-git commit -m "Preparar para despliegue"
-git push origin main
-```
+### 📝 PREPARACIÓN INICIAL
 
-### 2. Desplegar Backend en Railway
+1. **Asegúrate de tener todo committeado**:
+   ```bash
+   git add .
+   git commit -m "Listo para despliegue"
+   git push origin main
+   ```
 
-1. Ve a [Railway.app](https://railway.app) y crea una cuenta
-2. Conecta tu repositorio de GitHub
-3. Selecciona el proyecto y la carpeta `backend`
-4. Railway detectará automáticamente que es un proyecto Node.js
-5. Configura las variables de entorno:
+2. **Verifica que el build funciona localmente**:
+   ```bash
+   npm run build
+   ```
+
+---
+
+## 🚂 PASO 1: Desplegar Backend en Railway
+
+### 1.1 Crear cuenta en Railway
+- Ve a [Railway.app](https://railway.app)
+- Haz clic en "Sign Up" y conecta con GitHub
+
+### 1.2 Crear nuevo proyecto
+- Haz clic en "New Project"
+- Selecciona "Deploy from GitHub repo"
+- Busca y selecciona tu repositorio `control-flow-guard`
+
+### 1.3 Configurar el servicio Backend
+- Railway detectará automáticamente que hay una carpeta `backend`
+- Haz clic en "Add Service" → "GitHub Repo"
+- Selecciona tu repo y configura:
+  - **Root Directory**: `backend`
+  - **Build Command**: `npm install`
+  - **Start Command**: `npm start`
+
+### 1.4 Agregar Base de Datos MySQL
+- En el dashboard de Railway, haz clic en "New"
+- Selecciona "Database" → "MySQL"
+- Railway creará automáticamente la base de datos
+
+### 1.5 Configurar Variables de Entorno
+En el servicio de tu backend, ve a "Variables" y agrega:
 
 ```env
 NODE_ENV=production
-JWT_SECRET=tu-secreto-jwt-super-seguro-aqui
+JWT_SECRET=tu-secreto-jwt-super-seguro-para-produccion-2024
 FRONTEND_URL=https://tu-app.vercel.app
 ```
 
-6. Railway creará automáticamente una base de datos MySQL
-7. Usa las credenciales de la base de datos que Railway te proporcione:
+**IMPORTANTE**: Las credenciales de MySQL se configurarán automáticamente. Railway las agregará como variables de entorno automáticamente.
 
-```env
-DB_HOST=containers-us-west-xxx.railway.app
-DB_USER=root
-DB_PASSWORD=tu-password-de-railway
-DB_NAME=railway
-DB_PORT=3306
-```
+### 1.6 Obtener URL del Backend
+- Una vez desplegado, Railway te dará una URL como: `https://tu-proyecto-production.up.railway.app`
+- **COPIA ESTA URL** - la necesitarás para el frontend
 
-### 3. Desplegar Frontend en Vercel
+---
 
-1. Ve a [Vercel.com](https://vercel.com) y crea una cuenta
-2. Conecta tu repositorio de GitHub
-3. Configura el proyecto:
-   - **Framework Preset**: Vite
-   - **Root Directory**: `.` (raíz del proyecto)
-   - **Build Command**: `npm ci && npm run build`
-   - **Output Directory**: `dist`
-   - **Install Command**: `npm ci`
+## 🌐 PASO 2: Desplegar Frontend en Vercel
 
-4. Configura las variables de entorno:
+### 2.1 Crear cuenta en Vercel
+- Ve a [Vercel.com](https://vercel.com)
+- Haz clic en "Sign Up" y conecta con GitHub
+
+### 2.2 Importar proyecto
+- Haz clic en "New Project"
+- Selecciona tu repositorio `control-flow-guard`
+- Vercel detectará automáticamente que es un proyecto Vite
+
+### 2.3 Configurar el proyecto
+Asegúrate de que la configuración sea:
+- **Framework Preset**: `Vite`
+- **Root Directory**: `.` (raíz del proyecto)
+- **Build Command**: `npm ci && npm run build`
+- **Output Directory**: `dist`
+- **Install Command**: `npm ci`
+
+### 2.4 Configurar Variables de Entorno
+En la sección "Environment Variables", agrega:
 ```env
 VITE_API_URL=https://tu-backend.railway.app
 ```
+**IMPORTANTE**: Reemplaza `https://tu-backend.railway.app` con la URL real de tu backend de Railway.
 
-5. Haz clic en "Deploy"
+### 2.5 Desplegar
+- Haz clic en "Deploy"
+- Espera a que termine el build (2-3 minutos)
 
-**Nota**: El proyecto está configurado para usar npm en lugar de Bun para mayor compatibilidad.
+---
 
-### 4. Inicializar la Base de Datos
+## 🗄️ PASO 3: Inicializar Base de Datos
 
-Una vez que Railway esté desplegado:
+### 3.1 Acceder al terminal de Railway
+- Ve al dashboard de Railway
+- Selecciona tu servicio backend
+- Haz clic en la pestaña "Deployments"
+- Haz clic en el deployment más reciente
+- Haz clic en "View Logs" y luego "Open Shell"
 
-1. Ve a la consola de Railway
-2. Abre el terminal de tu servicio
-3. Ejecuta: `npm run db:init`
+### 3.2 Ejecutar script de inicialización
+En el terminal de Railway, ejecuta:
+```bash
+npm run db:init
+```
 
-## 🔗 URLs de Acceso
+Esto creará:
+- ✅ Todas las tablas necesarias
+- ✅ Usuario administrador inicial
+- ✅ Datos de ejemplo
 
+### 3.3 Verificar que funcionó
+Deberías ver mensajes como:
+```
+✅ Base de datos inicializada correctamente
+📝 Credenciales de administrador:
+   Email: admin@essalud.gob.pe
+   Password: admin123
+```
+
+---
+
+## 🔗 PASO 4: Configurar URLs Finales
+
+### 4.1 Actualizar Frontend con URL del Backend
+- Ve a Vercel Dashboard
+- Selecciona tu proyecto
+- Ve a "Settings" → "Environment Variables"
+- Actualiza `VITE_API_URL` con la URL real de Railway
+- Haz clic en "Redeploy" para aplicar los cambios
+
+### 4.2 Actualizar Backend con URL del Frontend
+- Ve a Railway Dashboard
+- Selecciona tu servicio backend
+- Ve a "Variables"
+- Actualiza `FRONTEND_URL` con la URL de Vercel
+- Railway redeployará automáticamente
+
+---
+
+## ✅ PASO 5: Verificar que Todo Funciona
+
+### 5.1 Probar el Backend
+Visita: `https://tu-backend.railway.app/api/health`
+Deberías ver:
+```json
+{
+  "status": "OK",
+  "timestamp": "2024-01-01T00:00:00.000Z",
+  "uptime": 123.456
+}
+```
+
+### 5.2 Probar el Frontend
+Visita: `https://tu-app.vercel.app`
+- Debería cargar la página de login
+- Intenta hacer login con:
+  - **Email**: `admin@essalud.gob.pe`
+  - **Password**: `admin123`
+
+### 5.3 Probar la Conexión Completa
+- Haz login en el frontend
+- Navega por las diferentes secciones
+- Verifica que los datos se cargan correctamente
+
+---
+
+## 🔐 Credenciales de Acceso
+
+### Usuario Administrador
+- **Email**: `admin@essalud.gob.pe`
+- **Password**: `admin123`
+
+### URLs de Acceso
 - **Frontend**: `https://tu-app.vercel.app`
 - **Backend API**: `https://tu-backend.railway.app`
 - **Health Check**: `https://tu-backend.railway.app/api/health`
 
-## 🔐 Credenciales Iniciales
+---
 
-- **Email**: `admin@essalud.gob.pe`
-- **Password**: `admin123`
+## 🆘 Solución de Problemas Comunes
 
-## 🛠️ Alternativas de Despliegue
+### ❌ Error: "Failed to fetch" en el frontend
+**Causa**: CORS o URL incorrecta
+**Solución**: 
+1. Verifica que `VITE_API_URL` en Vercel sea correcta
+2. Verifica que `FRONTEND_URL` en Railway sea correcta
+3. Espera 2-3 minutos para que los cambios se apliquen
 
-### Opción 2: Todo en Railway
-- Frontend y Backend en Railway
-- Más simple pero menos optimizado para frontend
+### ❌ Error: "Database connection failed"
+**Causa**: Variables de entorno incorrectas
+**Solución**:
+1. Verifica que Railway haya creado MySQL automáticamente
+2. Las variables `DB_HOST`, `DB_USER`, etc. se configuran solas
+3. Ejecuta `npm run db:init` en el terminal de Railway
 
-### Opción 3: Netlify + Railway
-- Frontend en Netlify
-- Backend en Railway
-- Similar a Vercel pero con Netlify
+### ❌ Error: "Build failed" en Vercel
+**Causa**: Dependencias o configuración incorrecta
+**Solución**:
+1. Verifica que `package.json` tenga todas las dependencias
+2. Revisa los logs de build en Vercel
+3. Asegúrate de usar `npm ci` como install command
 
-## 📊 Monitoreo
-
-- **Railway**: Dashboard con métricas de uso
-- **Vercel**: Analytics y logs de despliegue
-- **Health Check**: `/api/health` para verificar estado
-
-## 🔄 Actualizaciones
-
-Para actualizar la aplicación:
-
-1. Haz cambios en tu código local
-2. Commit y push a GitHub
-3. Vercel y Railway se actualizarán automáticamente
-
-## 🆘 Solución de Problemas
-
-### Error de CORS
-- Verifica que `FRONTEND_URL` esté configurado correctamente en Railway
-
-### Error de Base de Datos
-- Verifica las credenciales de MySQL en Railway
-- Ejecuta `npm run db:init` en el terminal de Railway
-
-### Error de Build
-- Verifica que todas las dependencias estén en `package.json`
-- Revisa los logs de build en Vercel/Railway
-
-## 💡 Tips para Presentaciones
-
-1. **Prueba todo antes**: Accede a la URL desplegada y verifica que funcione
-2. **Ten un backup**: Mantén una copia local funcionando
-3. **Credenciales listas**: Ten las credenciales de admin a mano
-4. **URLs cortas**: Usa un acortador de URLs para facilitar el acceso
-
-## 📱 Acceso Móvil
-
-La aplicación es responsive y funcionará en dispositivos móviles usando las URLs desplegadas.
+### ❌ Error: "Unauthorized" al hacer login
+**Causa**: Base de datos no inicializada
+**Solución**:
+1. Ejecuta `npm run db:init` en Railway
+2. Verifica que el usuario admin se haya creado
 
 ---
 
-¡Tu aplicación estará lista para la presentación! 🎉
+## 💡 Tips para tu Presentación
+
+### ✅ Checklist Pre-Presentación
+- [ ] Frontend carga correctamente
+- [ ] Login funciona con credenciales admin
+- [ ] Dashboard muestra datos
+- [ ] Todas las secciones son accesibles
+- [ ] URLs son fáciles de recordar/compartir
+
+### 📱 Acceso Móvil
+- La aplicación es responsive
+- Funciona en tablets y móviles
+- Usa las mismas URLs desplegadas
+
+### 🔄 Actualizaciones Rápidas
+Para hacer cambios después del despliegue:
+1. Haz cambios en tu código local
+2. `git add . && git commit -m "Update" && git push`
+3. Vercel y Railway se actualizarán automáticamente
+
+---
+
+## 🎉 ¡Listo para Presentar!
+
+Tu aplicación estará disponible 24/7 en las URLs desplegadas. Perfecta para demostraciones y presentaciones profesionales.
+
+**Tiempo total de despliegue**: 15-20 minutos
+**Costo**: $0 (completamente gratuito)
+**Disponibilidad**: 99.9% uptime
