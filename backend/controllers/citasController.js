@@ -83,6 +83,11 @@ export const createCita = async (req, res) => {
 // Actualizar estado de cita
 export const updateCita = async (req, res) => {
   try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ errors: errors.array() });
+    }
+
     const { id } = req.params;
     const { estado, fecha, hora } = req.body;
     const userRole = req.user.area;

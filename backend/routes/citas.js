@@ -21,6 +21,12 @@ const createCitaValidation = [
   body('hora').matches(/^\d{2}:\d{2}$/).withMessage('Formato de hora inválido. Use HH:MM')
 ];
 
+const updateCitaValidation = [
+  body('estado').optional().isIn(['PROGRAMADA', 'ATENDIDA', 'CANCELADA']).withMessage('Estado inválido'),
+  body('fecha').optional().matches(/^\d{4}-\d{2}-\d{2}$/).withMessage('Formato de fecha inválido. Use YYYY-MM-DD'),
+  body('hora').optional().matches(/^\d{2}:\d{2}$/).withMessage('Formato de hora inválido. Use HH:MM')
+];
+
 // Todas las rutas requieren autenticación
 router.use(authenticateToken);
 
@@ -28,7 +34,7 @@ router.use(authenticateToken);
 router.get('/', requireAnyRole('CLINICO', 'ADMIN'), getCitas);
 router.get('/hoy', requireAnyRole('CLINICO', 'ADMIN'), getCitasDelDia);
 router.post('/', requireAnyRole('CLINICO', 'ADMIN'), createCitaValidation, createCita);
-router.patch('/:id', requireAnyRole('CLINICO', 'ADMIN'), updateCita);
+router.patch('/:id', requireAnyRole('CLINICO', 'ADMIN'), updateCitaValidation, updateCita);
 router.get('/export', requireAnyRole('CLINICO', 'ADMIN'), exportCitas);
 
 export default router;

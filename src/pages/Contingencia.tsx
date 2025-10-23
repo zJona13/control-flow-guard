@@ -469,11 +469,26 @@ const Contingencia = () => {
     try {
       setEditing(true);
       
-      await citasAPI.update(editingAppointment.id, {
-        estado: editingAppointment.estado,
-        fecha: editingAppointment.fecha,
-        hora: editingAppointment.hora,
-      });
+      // Validar y formatear los datos antes de enviar
+      const updateData: { estado?: string; fecha?: string; hora?: string } = {};
+      
+      if (editingAppointment.estado) {
+        updateData.estado = editingAppointment.estado;
+      }
+      
+      if (editingAppointment.fecha) {
+        // Asegurar que la fecha esté en formato YYYY-MM-DD
+        updateData.fecha = editingAppointment.fecha;
+      }
+      
+      if (editingAppointment.hora) {
+        // Asegurar que la hora esté en formato HH:MM
+        updateData.hora = editingAppointment.hora;
+      }
+      
+      console.log('Datos a enviar:', updateData);
+      
+      await citasAPI.update(editingAppointment.id, updateData);
       
       toast({
         title: "Éxito",
