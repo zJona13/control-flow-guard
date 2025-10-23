@@ -23,8 +23,18 @@ const createCitaValidation = [
 
 const updateCitaValidation = [
   body('estado').optional().isIn(['PROGRAMADA', 'ATENDIDA', 'CANCELADA']).withMessage('Estado inválido'),
-  body('fecha').optional().matches(/^\d{4}-\d{2}-\d{2}$/).withMessage('Formato de fecha inválido. Use YYYY-MM-DD'),
-  body('hora').optional().matches(/^\d{2}:\d{2}$/).withMessage('Formato de hora inválido. Use HH:MM')
+  body('fecha').optional().custom((value) => {
+    if (!value) return true; // Si no se proporciona, está bien
+    if (typeof value !== 'string') return false;
+    // Permitir tanto YYYY-MM-DD como otros formatos de fecha
+    return /^\d{4}-\d{2}-\d{2}$/.test(value) || !isNaN(Date.parse(value));
+  }).withMessage('Formato de fecha inválido'),
+  body('hora').optional().custom((value) => {
+    if (!value) return true; // Si no se proporciona, está bien
+    if (typeof value !== 'string') return false;
+    // Permitir HH:MM o HH:MM:SS
+    return /^\d{2}:\d{2}(:\d{2})?$/.test(value);
+  }).withMessage('Formato de hora inválido')
 ];
 
 // Todas las rutas requieren autenticación

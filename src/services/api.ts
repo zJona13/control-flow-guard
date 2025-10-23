@@ -207,7 +207,7 @@ export const citasAPI = {
 
   update: async (
     id: number,
-    data: { estado?: string; fecha?: string; hora?: string }
+actual    data: { estado?: string; fecha?: string; hora?: string }
   ): Promise<{ message: string; cita: Appointment }> => {
     const response = await api.patch(`/api/citas/${id}`, data);
     return response.data;

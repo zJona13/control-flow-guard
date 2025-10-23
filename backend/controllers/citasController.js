@@ -85,12 +85,21 @@ export const updateCita = async (req, res) => {
   try {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
+      console.log('Errores de validación en updateCita:', errors.array());
       return res.status(400).json({ errors: errors.array() });
     }
 
     const { id } = req.params;
     const { estado, fecha, hora } = req.body;
     const userRole = req.user.area;
+
+    console.log('Datos recibidos para actualizar cita:', {
+      id,
+      estado,
+      fecha,
+      hora,
+      body: req.body
+    });
 
     // Verificar permisos
     if (!['CLINICO', 'ADMIN'].includes(userRole)) {
@@ -142,6 +151,7 @@ export const updateCita = async (req, res) => {
     }
 
     if (updates.length === 0) {
+      console.log('No hay campos para actualizar. Datos recibidos:', { estado, fecha, hora });
       return res.status(400).json({ error: 'No se proporcionaron campos para actualizar' });
     }
 

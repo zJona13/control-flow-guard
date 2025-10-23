@@ -472,21 +472,56 @@ const Contingencia = () => {
       // Validar y formatear los datos antes de enviar
       const updateData: { estado?: string; fecha?: string; hora?: string } = {};
       
-      if (editingAppointment.estado) {
+      if (editingAppointment.estado && editingAppointment.estado.trim() !== '') {
         updateData.estado = editingAppointment.estado;
       }
       
-      if (editingAppointment.fecha) {
+      if (editingAppointment.fecha && editingAppointment.fecha.trim() !== '') {
         // Asegurar que la fecha esté en formato YYYY-MM-DD
-        updateData.fecha = editingAppointment.fecha;
+        const fecha = editingAppointment.fecha;
+        if (fecha.includes('T')) {
+          // Si viene como ISO string, extraer solo la fecha
+          updateData.fecha = fecha.split('T')[0];
+        } else {
+          updateData.fecha = fecha;
+        }
       }
       
-      if (editingAppointment.hora) {
+      if (editingAppointment.hora && editingAppointment.hora.trim() !== '') {
         // Asegurar que la hora esté en formato HH:MM
-        updateData.hora = editingAppointment.hora;
+        const hora = editingAppointment.hora;
+        if (hora.includes('T')) {
+          // Si viene como ISO string, extraer solo la hora
+          const date = new Date(hora);
+          const hours = date.getHours().toString().padStart(2, '0');
+          const minutes = date.getMinutes().toString().padStart(2, '0');
+          updateData.hora = `${hours}:${minutes}`;
+        } else if (hora.includes(':')) {
+          // Si ya está en formato HH:MM, usarlo directamente
+          updateData.hora = hora;
+        } else {
+          // Si no tiene formato, intentar parsearlo
+          const date = new Date(hora);
+          if (!isNaN(date.getTime())) {
+            const hours = date.getHours().toString().padStart(2, '0');
+            const minutes = date.getMinutes().toString().padStart(2, '0');
+            updateData.hora = `${hours}:${minutes}`;
+          }
+        }
+      }
+      
+      // Verificar que al menos un campo tenga datos
+      if (Object.keys(updateData).length === 0) {
+        toast({
+          title: "Error",
+          description: "No hay cambios para guardar",
+          variant: "destructive",
+        });
+        return;
       }
       
       console.log('Datos a enviar:', updateData);
+      console.log('Datos completos del appointment:', editingAppointment);
       
       await citasAPI.update(editingAppointment.id, updateData);
       
