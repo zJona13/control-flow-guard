@@ -28,6 +28,66 @@ interface Appointment {
 const dniSchema = z.string().regex(/^\d{8}$/, "DNI debe tener 8 dígitos");
 const nameSchema = z.string().min(3, "Nombre muy corto").max(100, "Nombre muy largo");
 
+// Helper functions para manejar fechas de manera segura
+const parseDateTime = (dateTimeString: string): Date => {
+  // Si la fecha viene del backend como 'YYYY-MM-DD HH:MM:SS', la convertimos a ISO
+  if (dateTimeString.includes(' ') && !dateTimeString.includes('T')) {
+    return new Date(dateTimeString.replace(' ', 'T'));
+  }
+  // Si ya es ISO o tiene Z, la usamos directamente
+  return new Date(dateTimeString);
+};
+
+// Helper function para formatear fecha para input date
+const formatDateForInput = (dateTimeString: string): string => {
+  try {
+    const date = parseDateTime(dateTimeString);
+    return date.toISOString().split('T')[0];
+  } catch (error) {
+    console.error('Error formatting date:', error);
+    return new Date().toISOString().split('T')[0];
+  }
+};
+
+// Helper function para formatear hora para input time
+const formatTimeForInput = (dateTimeString: string): string => {
+  try {
+    const date = parseDateTime(dateTimeString);
+    return date.toTimeString().slice(0, 5);
+  } catch (error) {
+    console.error('Error formatting time:', error);
+    return '00:00';
+  }
+};
+
+// Helper function para mostrar hora en la interfaz sin conversión de zona horaria
+const formatTimeForDisplay = (dateTimeString: string): string => {
+  try {
+    // Si la fecha viene del backend como 'YYYY-MM-DD HH:MM:SS', extraemos la hora directamente
+    if (dateTimeString.includes(' ') && !dateTimeString.includes('T')) {
+      const timePart = dateTimeString.split(' ')[1];
+      const [hours, minutes] = timePart.split(':');
+      const date = new Date();
+      date.setHours(parseInt(hours), parseInt(minutes), 0, 0);
+      return date.toLocaleTimeString("es-PE", { 
+        hour: '2-digit', 
+        minute: '2-digit',
+        hour12: true
+      });
+    }
+    // Si es formato ISO, usamos parseDateTime
+    const date = parseDateTime(dateTimeString);
+    return date.toLocaleTimeString("es-PE", { 
+      hour: '2-digit', 
+      minute: '2-digit',
+      hour12: true
+    });
+  } catch (error) {
+    console.error('Error formatting time for display:', error);
+    return '00:00';
+  }
+};
+
 // Helper component for calendar day cells
 interface DayCellProps {
   date: Date;
@@ -195,65 +255,6 @@ const Contingencia = () => {
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(undefined);
   const [calendarMonth, setCalendarMonth] = useState<Date>(new Date());
 
-  // Helper function para manejar fechas de manera segura
-  const parseDateTime = (dateTimeString: string): Date => {
-    // Si la fecha viene del backend como 'YYYY-MM-DD HH:MM:SS', la convertimos a ISO
-    if (dateTimeString.includes(' ') && !dateTimeString.includes('T')) {
-      return new Date(dateTimeString.replace(' ', 'T'));
-    }
-    // Si ya es ISO o tiene Z, la usamos directamente
-    return new Date(dateTimeString);
-  };
-
-  // Helper function para formatear fecha para input date
-  const formatDateForInput = (dateTimeString: string): string => {
-    try {
-      const date = parseDateTime(dateTimeString);
-      return date.toISOString().split('T')[0];
-    } catch (error) {
-      console.error('Error formatting date:', error);
-      return new Date().toISOString().split('T')[0];
-    }
-  };
-
-  // Helper function para formatear hora para input time
-  const formatTimeForInput = (dateTimeString: string): string => {
-    try {
-      const date = parseDateTime(dateTimeString);
-      return date.toTimeString().slice(0, 5);
-    } catch (error) {
-      console.error('Error formatting time:', error);
-      return '00:00';
-    }
-  };
-
-  // Helper function para mostrar hora en la interfaz sin conversión de zona horaria
-  const formatTimeForDisplay = (dateTimeString: string): string => {
-    try {
-      // Si la fecha viene del backend como 'YYYY-MM-DD HH:MM:SS', extraemos la hora directamente
-      if (dateTimeString.includes(' ') && !dateTimeString.includes('T')) {
-        const timePart = dateTimeString.split(' ')[1];
-        const [hours, minutes] = timePart.split(':');
-        const date = new Date();
-        date.setHours(parseInt(hours), parseInt(minutes), 0, 0);
-        return date.toLocaleTimeString("es-PE", { 
-          hour: '2-digit', 
-          minute: '2-digit',
-          hour12: true
-        });
-      }
-      // Si es formato ISO, usamos parseDateTime
-      const date = parseDateTime(dateTimeString);
-      return date.toLocaleTimeString("es-PE", { 
-        hour: '2-digit', 
-        minute: '2-digit',
-        hour12: true
-      });
-    } catch (error) {
-      console.error('Error formatting time for display:', error);
-      return '00:00';
-    }
-  };
   
   // Estados para el modal de fecha
   const [isDateModalOpen, setIsDateModalOpen] = useState(false);
