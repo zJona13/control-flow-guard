@@ -99,69 +99,105 @@ async function initializeDatabase() {
 
       console.log('✓ Conexión exitosa a MySQL');
 
-      // Leer el archivo SQL
-      const __filename = fileURLToPath(import.meta.url);
-      const __dirname = path.dirname(__filename);
-      const sqlPath = path.join(__dirname, '../../sql/mysql_schema.sql');
+      // Crear el esquema SQL directamente
+      console.log('🔄 Creando esquema de base de datos...');
       
-      console.log(`🔍 Buscando archivo SQL en: ${sqlPath}`);
-      
-      // Verificar que el archivo existe
-      if (!fs.existsSync(sqlPath)) {
-        console.log('❌ Archivo SQL no encontrado');
-        console.log('💡 Verificando rutas alternativas...');
-        
-        // Intentar rutas alternativas
-        const alternativePaths = [
-          path.join(__dirname, '../sql/mysql_schema.sql'),
-          path.join(__dirname, './sql/mysql_schema.sql'),
-          path.join(process.cwd(), 'sql/mysql_schema.sql'),
-          path.join(process.cwd(), '../sql/mysql_schema.sql')
-        ];
-        
-        let foundPath = null;
-        for (const altPath of alternativePaths) {
-          console.log(`🔍 Probando: ${altPath}`);
-          if (fs.existsSync(altPath)) {
-            foundPath = altPath;
-            console.log(`✅ Archivo encontrado en: ${altPath}`);
-            break;
-          }
-        }
-        
-        if (!foundPath) {
-          throw new Error('No se pudo encontrar el archivo mysql_schema.sql');
-        }
-        
-        sqlPath = foundPath;
-      }
-      
-      let sql = fs.readFileSync(sqlPath, 'utf8');
+      const sql = `
+        -- Crear base de datos si no existe
+        CREATE DATABASE IF NOT EXISTS \`${process.env.DB_NAME}\`;
+        USE \`${process.env.DB_NAME}\`;
+
+        -- Tabla de usuarios
+        CREATE TABLE IF NOT EXISTS usuarios (
+          id VARCHAR(36) PRIMARY KEY,
+          email VARCHAR(255) UNIQUE NOT NULL,
+          password_hash VARCHAR(255) NOT NULL,
+          nombres VARCHAR(100) NOT NULL,
+          apellidos VARCHAR(100) NOT NULL,
+          area ENUM('ADMIN', 'TI', 'CONTROL_INTERNO', 'ADMISION', 'CLINICO') NOT NULL,
+          activo BOOLEAN DEFAULT TRUE,
+          creado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          actualizado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+        );
+
+        -- Tabla de excepciones de control
+        CREATE TABLE IF NOT EXISTS control_excepciones (
+          id INT AUTO_INCREMENT PRIMARY KEY,
+          descripcion TEXT NOT NULL,
+          fecha DATE NOT NULL,
+          categoria VARCHAR(100) NOT NULL,
+          estado ENUM('PENDIENTE', 'EN_PROCESO', 'RESUELTO', 'CERRADO') DEFAULT 'PENDIENTE',
+          responsable_id VARCHAR(36),
+          creado_por VARCHAR(36) NOT NULL,
+          fecha_limite DATE,
+          causa_raiz TEXT,
+          creado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          actualizado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+          FOREIGN KEY (responsable_id) REFERENCES usuarios(id),
+          FOREIGN KEY (creado_por) REFERENCES usuarios(id)
+        );
+
+        -- Tabla de acciones correctivas
+        CREATE TABLE IF NOT EXISTS excepcion_acciones (
+          id INT AUTO_INCREMENT PRIMARY KEY,
+          excepcion_id INT NOT NULL,
+          accion TEXT NOT NULL,
+          responsable_id VARCHAR(36) NOT NULL,
+          fecha_accion TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          estado ENUM('PENDIENTE', 'COMPLETADO', 'CANCELADO') DEFAULT 'PENDIENTE',
+          FOREIGN KEY (excepcion_id) REFERENCES control_excepciones(id) ON DELETE CASCADE,
+          FOREIGN KEY (responsable_id) REFERENCES usuarios(id)
+        );
+
+        -- Tabla de citas de contingencia
+        CREATE TABLE IF NOT EXISTS citas_contingencia (
+          id INT AUTO_INCREMENT PRIMARY KEY,
+          dni VARCHAR(8) NOT NULL,
+          nombre_completo VARCHAR(200) NOT NULL,
+          servicio VARCHAR(100) NOT NULL,
+          medico_asignado VARCHAR(100) NOT NULL,
+          fecha_hora DATETIME NOT NULL,
+          estado ENUM('PROGRAMADA', 'ATENDIDA', 'CANCELADA', 'NO_ASISTIO') DEFAULT 'PROGRAMADA',
+          creado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          actualizado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+        );
+
+        -- Tabla de responsables TI por categoría
+        CREATE TABLE IF NOT EXISTS ti_responsables (
+          id INT AUTO_INCREMENT PRIMARY KEY,
+          categoria VARCHAR(100) NOT NULL,
+          responsable_id VARCHAR(36) NOT NULL,
+          activo BOOLEAN DEFAULT TRUE,
+          creado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          FOREIGN KEY (responsable_id) REFERENCES usuarios(id)
+        );
+
+        -- Trigger para asignar responsable automáticamente
+        DELIMITER //
+        CREATE TRIGGER IF NOT EXISTS asignar_responsable_ti
+        AFTER INSERT ON control_excepciones
+        FOR EACH ROW
+        BEGIN
+          DECLARE responsable_id VARCHAR(36);
+          SELECT tr.responsable_id INTO responsable_id
+          FROM ti_responsables tr
+          WHERE tr.categoria = NEW.categoria AND tr.activo = TRUE
+          LIMIT 1;
+          
+          IF responsable_id IS NOT NULL THEN
+            UPDATE control_excepciones 
+            SET responsable_id = responsable_id,
+                fecha_limite = DATE_ADD(CURDATE(), INTERVAL 7 DAY)
+            WHERE id = NEW.id;
+          END IF;
+        END//
+        DELIMITER ;
+      `;
 
       console.log('🔄 Ejecutando script SQL...');
       
-      // Separar el trigger del resto del SQL porque necesita ejecutarse aparte
-      const triggerMatch = sql.match(/(DROP TRIGGER.*?;[\s\S]*?CREATE TRIGGER[\s\S]*?END;)/i);
-      const triggerSQL = triggerMatch ? triggerMatch[1] : null;
-      
-      // Remover el trigger del SQL principal
-      if (triggerSQL) {
-        sql = sql.replace(triggerSQL, '');
-      }
-      
-      // Ejecutar el SQL principal (sin trigger)
+      // Ejecutar el SQL completo
       await connection.query(sql);
-      
-      // Ejecutar el trigger por separado si existe
-      if (triggerSQL) {
-        try {
-          await connection.query(triggerSQL);
-        } catch (err) {
-          if (!err.message.includes('Unknown trigger')) {
-            console.warn('Advertencia al crear trigger:', err.message);
-          }
-        }
-      }
       
       console.log('✓ Esquema de base de datos creado');
 
