@@ -80,6 +80,26 @@ export const createCita = async (req, res) => {
   }
 };
 
+// Endpoint de prueba para debugging
+export const testUpdate = async (req, res) => {
+  try {
+    console.log('Test endpoint - Datos recibidos:', {
+      body: req.body,
+      params: req.params,
+      headers: req.headers
+    });
+    
+    res.json({
+      message: 'Test endpoint funcionando',
+      receivedData: req.body,
+      params: req.params
+    });
+  } catch (error) {
+    console.error('Error en test endpoint:', error);
+    res.status(500).json({ error: 'Error en test endpoint' });
+  }
+};
+
 // Actualizar estado de cita
 export const updateCita = async (req, res) => {
   try {
@@ -93,12 +113,13 @@ export const updateCita = async (req, res) => {
     const { estado, fecha, hora } = req.body;
     const userRole = req.user.area;
 
-    console.log('Datos recibidos para actualizar cita:', {
+    console.log('Datos recibidos en updateCita:', {
       id,
       estado,
       fecha,
       hora,
-      body: req.body
+      body: req.body,
+      userRole
     });
 
     // Verificar permisos
@@ -151,7 +172,6 @@ export const updateCita = async (req, res) => {
     }
 
     if (updates.length === 0) {
-      console.log('No hay campos para actualizar. Datos recibidos:', { estado, fecha, hora });
       return res.status(400).json({ error: 'No se proporcionaron campos para actualizar' });
     }
 

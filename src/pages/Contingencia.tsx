@@ -472,58 +472,42 @@ const Contingencia = () => {
       // Validar y formatear los datos antes de enviar
       const updateData: { estado?: string; fecha?: string; hora?: string } = {};
       
+      // Solo enviar campos que han cambiado y no están vacíos
       if (editingAppointment.estado && editingAppointment.estado.trim() !== '') {
-        updateData.estado = editingAppointment.estado;
+        updateData.estado = editingAppointment.estado.trim();
       }
       
       if (editingAppointment.fecha && editingAppointment.fecha.trim() !== '') {
         // Asegurar que la fecha esté en formato YYYY-MM-DD
-        const fecha = editingAppointment.fecha;
-        if (fecha.includes('T')) {
-          // Si viene como ISO string, extraer solo la fecha
-          updateData.fecha = fecha.split('T')[0];
-        } else {
+        const fecha = editingAppointment.fecha.trim();
+        if (/^\d{4}-\d{2}-\d{2}$/.test(fecha)) {
           updateData.fecha = fecha;
         }
       }
       
       if (editingAppointment.hora && editingAppointment.hora.trim() !== '') {
         // Asegurar que la hora esté en formato HH:MM
-        const hora = editingAppointment.hora;
-        if (hora.includes('T')) {
-          // Si viene como ISO string, extraer solo la hora
-          const date = new Date(hora);
-          const hours = date.getHours().toString().padStart(2, '0');
-          const minutes = date.getMinutes().toString().padStart(2, '0');
-          updateData.hora = `${hours}:${minutes}`;
-        } else if (hora.includes(':')) {
-          // Si ya está en formato HH:MM, usarlo directamente
+        const hora = editingAppointment.hora.trim();
+        if (/^\d{2}:\d{2}$/.test(hora)) {
           updateData.hora = hora;
-        } else {
-          // Si no tiene formato, intentar parsearlo
-          const date = new Date(hora);
-          if (!isNaN(date.getTime())) {
-            const hours = date.getHours().toString().padStart(2, '0');
-            const minutes = date.getMinutes().toString().padStart(2, '0');
-            updateData.hora = `${hours}:${minutes}`;
-          }
         }
       }
       
-      // Verificar que al menos un campo tenga datos
-      if (Object.keys(updateData).length === 0) {
-        toast({
-          title: "Error",
-          description: "No hay cambios para guardar",
-          variant: "destructive",
-        });
-        return;
-      }
-      
-      console.log('Datos a enviar:', updateData);
-      console.log('Datos completos del appointment:', editingAppointment);
-      
-      await citasAPI.update(editingAppointment.id, updateData);
+       // Verificar que al menos un campo tenga datos
+       if (Object.keys(updateData).length === 0) {
+         toast({
+           title: "Error",
+           description: "No hay cambios válidos para guardar",
+           variant: "destructive",
+         });
+         return;
+       }
+       
+       console.log('Datos a enviar:', updateData);
+       console.log('ID de la cita:', editingAppointment.id);
+       console.log('Datos completos del appointment:', editingAppointment);
+       
+       await citasAPI.update(editingAppointment.id, updateData);
       
       toast({
         title: "Éxito",
@@ -536,9 +520,22 @@ const Contingencia = () => {
       fetchAppointments(); // Recargar la lista
     } catch (error) {
       console.error("Error al actualizar cita:", error);
+      
+      // Mostrar mensaje de error más específico
+      let errorMessage = "No se pudo actualizar la cita";
+      
+      if (error && typeof error === 'object' && 'response' in error) {
+        const axiosError = error as { response?: { data?: { error?: string; errors?: any[] } } };
+        if (axiosError.response?.data?.error) {
+          errorMessage = axiosError.response.data.error;
+        } else if (axiosError.response?.data?.errors) {
+          errorMessage = axiosError.response.data.errors.map((err: any) => err.msg).join(', ');
+        }
+      }
+      
       toast({
         title: "Error",
-        description: "No se pudo actualizar la cita",
+        description: errorMessage,
         variant: "destructive",
       });
     } finally {

@@ -5,7 +5,8 @@ import {
   createCita, 
   updateCita, 
   exportCitas,
-  getCitasDelDia 
+  getCitasDelDia,
+  testUpdate
 } from '../controllers/citasController.js';
 import { authenticateToken, requireAnyRole } from '../middleware/authMiddleware.js';
 
@@ -26,15 +27,15 @@ const updateCitaValidation = [
   body('fecha').optional().custom((value) => {
     if (!value) return true; // Si no se proporciona, está bien
     if (typeof value !== 'string') return false;
-    // Permitir tanto YYYY-MM-DD como otros formatos de fecha
-    return /^\d{4}-\d{2}-\d{2}$/.test(value) || !isNaN(Date.parse(value));
-  }).withMessage('Formato de fecha inválido'),
+    // Permitir formato YYYY-MM-DD
+    return /^\d{4}-\d{2}-\d{2}$/.test(value);
+  }).withMessage('Formato de fecha inválido. Use YYYY-MM-DD'),
   body('hora').optional().custom((value) => {
     if (!value) return true; // Si no se proporciona, está bien
     if (typeof value !== 'string') return false;
-    // Permitir HH:MM o HH:MM:SS
-    return /^\d{2}:\d{2}(:\d{2})?$/.test(value);
-  }).withMessage('Formato de hora inválido')
+    // Permitir HH:MM
+    return /^\d{2}:\d{2}$/.test(value);
+  }).withMessage('Formato de hora inválido. Use HH:MM')
 ];
 
 // Todas las rutas requieren autenticación
@@ -46,6 +47,9 @@ router.get('/hoy', requireAnyRole('CLINICO', 'ADMIN'), getCitasDelDia);
 router.post('/', requireAnyRole('CLINICO', 'ADMIN'), createCitaValidation, createCita);
 router.patch('/:id', requireAnyRole('CLINICO', 'ADMIN'), updateCitaValidation, updateCita);
 router.get('/export', requireAnyRole('CLINICO', 'ADMIN'), exportCitas);
+
+// Ruta de prueba para debugging
+router.patch('/test/:id', requireAnyRole('CLINICO', 'ADMIN'), testUpdate);
 
 export default router;
 
