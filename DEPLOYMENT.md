@@ -53,8 +53,9 @@ DB_PORT=3306
 3. Configura el proyecto:
    - **Framework Preset**: Vite
    - **Root Directory**: `.` (raíz del proyecto)
-   - **Build Command**: `npm run build`
+   - **Build Command**: `npm ci && npm run build`
    - **Output Directory**: `dist`
+   - **Install Command**: `npm ci`
 
 4. Configura las variables de entorno:
 ```env
@@ -62,6 +63,8 @@ VITE_API_URL=https://tu-backend.railway.app
 ```
 
 5. Haz clic en "Deploy"
+
+**Nota**: El proyecto está configurado para usar npm en lugar de Bun para mayor compatibilidad.
 
 ### 4. Inicializar la Base de Datos
 
