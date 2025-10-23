@@ -4,6 +4,11 @@ import { validationResult } from 'express-validator';
 // Listar citas
 export const getCitas = async (req, res) => {
   try {
+    // Verificar que el usuario esté autenticado
+    if (!req.user) {
+      return res.status(401).json({ error: 'Usuario no autenticado' });
+    }
+
     const userRole = req.user.area;
 
     // Verificar permisos (RLS)
@@ -12,7 +17,7 @@ export const getCitas = async (req, res) => {
     }
 
     const [citas] = await pool.query(
-      'SELECT * FROM citas_contingencia ORDER BY fecha_hora DESC'
+      'SELECT * FROM citas_contingencia ORDER BY fecha DESC, hora DESC'
     );
 
     res.json(citas);
@@ -28,6 +33,11 @@ export const createCita = async (req, res) => {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
       return res.status(400).json({ errors: errors.array() });
+    }
+
+    // Verificar que el usuario esté autenticado
+    if (!req.user) {
+      return res.status(401).json({ error: 'Usuario no autenticado' });
     }
 
     const { dni, nombre_completo, servicio, medico_asignado, fecha, hora } = req.body;
@@ -83,6 +93,11 @@ export const createCita = async (req, res) => {
 // Actualizar estado de cita
 export const updateCita = async (req, res) => {
   try {
+    // Verificar que el usuario esté autenticado
+    if (!req.user) {
+      return res.status(401).json({ error: 'Usuario no autenticado' });
+    }
+
     const { id } = req.params;
     const { estado, fecha, hora } = req.body;
     const userRole = req.user.area;
@@ -165,6 +180,11 @@ export const updateCita = async (req, res) => {
 // Exportar citas en formato CSV
 export const exportCitas = async (req, res) => {
   try {
+    // Verificar que el usuario esté autenticado
+    if (!req.user) {
+      return res.status(401).json({ error: 'Usuario no autenticado' });
+    }
+
     const userRole = req.user.area;
 
     // Verificar permisos
@@ -203,6 +223,11 @@ export const exportCitas = async (req, res) => {
 // Obtener citas del día
 export const getCitasDelDia = async (req, res) => {
   try {
+    // Verificar que el usuario esté autenticado
+    if (!req.user) {
+      return res.status(401).json({ error: 'Usuario no autenticado' });
+    }
+
     const userRole = req.user.area;
 
     // Verificar permisos

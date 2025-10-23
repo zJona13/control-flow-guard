@@ -292,6 +292,55 @@ async function initializeDatabase() {
       
       console.log('✓ Esquema de base de datos creado');
 
+      // Verificar si necesitamos migrar la tabla citas_contingencia
+      console.log('🔄 Verificando estructura de tabla citas_contingencia...');
+      
+      try {
+        const [columns] = await connection.query(`
+          SELECT COLUMN_NAME 
+          FROM INFORMATION_SCHEMA.COLUMNS 
+          WHERE TABLE_SCHEMA = ? AND TABLE_NAME = 'citas_contingencia' AND COLUMN_NAME = 'fecha_hora'
+        `, [process.env.DB_NAME || 'control_flow_guard']);
+
+        if (columns.length > 0) {
+          console.log('⚠️ Detectada estructura antigua con fecha_hora. Iniciando migración...');
+          
+          // Ejecutar migración
+          await connection.query(`
+            -- Agregar las nuevas columnas
+            ALTER TABLE citas_contingencia 
+            ADD COLUMN fecha DATE AFTER medico_asignado,
+            ADD COLUMN hora TIME AFTER fecha;
+
+            -- Migrar datos existentes desde fecha_hora
+            UPDATE citas_contingencia 
+            SET 
+              fecha = DATE(fecha_hora),
+              hora = TIME(fecha_hora)
+            WHERE fecha_hora IS NOT NULL;
+
+            -- Hacer las nuevas columnas NOT NULL después de migrar los datos
+            ALTER TABLE citas_contingencia 
+            MODIFY COLUMN fecha DATE NOT NULL,
+            MODIFY COLUMN hora TIME NOT NULL;
+
+            -- Eliminar la columna fecha_hora
+            ALTER TABLE citas_contingencia DROP COLUMN fecha_hora;
+
+            -- Actualizar los índices
+            DROP INDEX IF EXISTS idx_citas_fecha_hora ON citas_contingencia;
+            CREATE INDEX idx_citas_fecha ON citas_contingencia (fecha);
+            CREATE INDEX idx_citas_hora ON citas_contingencia (hora);
+          `);
+          
+          console.log('✓ Migración de citas_contingencia completada');
+        } else {
+          console.log('✓ Estructura de base de datos ya está actualizada');
+        }
+      } catch (migrationError) {
+        console.log('⚠️ Error en migración, continuando con estructura actual:', migrationError.message);
+      }
+
       // Crear usuario administrador con password hasheado
       const adminPassword = 'admin123';
       const salt = await bcrypt.genSalt(10);
