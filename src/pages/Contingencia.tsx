@@ -135,10 +135,7 @@ const DayCell = ({
                   </div>
                   <div className="flex items-center gap-2 text-xs text-muted-foreground">
                     <Clock className="h-3 w-3" />
-                    {new Date(appointment.fecha_hora).toLocaleTimeString("es-PE", { 
-                      hour: '2-digit', 
-                      minute: '2-digit' 
-                    })}
+                    {formatTimeForDisplay(appointment.fecha_hora)}
                   </div>
                   <p className="text-xs text-muted-foreground">{appointment.servicio}</p>
                   <p className="text-xs text-muted-foreground">{appointment.medico_asignado}</p>
@@ -226,6 +223,34 @@ const Contingencia = () => {
       return date.toTimeString().slice(0, 5);
     } catch (error) {
       console.error('Error formatting time:', error);
+      return '00:00';
+    }
+  };
+
+  // Helper function para mostrar hora en la interfaz sin conversión de zona horaria
+  const formatTimeForDisplay = (dateTimeString: string): string => {
+    try {
+      // Si la fecha viene del backend como 'YYYY-MM-DD HH:MM:SS', extraemos la hora directamente
+      if (dateTimeString.includes(' ') && !dateTimeString.includes('T')) {
+        const timePart = dateTimeString.split(' ')[1];
+        const [hours, minutes] = timePart.split(':');
+        const date = new Date();
+        date.setHours(parseInt(hours), parseInt(minutes), 0, 0);
+        return date.toLocaleTimeString("es-PE", { 
+          hour: '2-digit', 
+          minute: '2-digit',
+          hour12: true
+        });
+      }
+      // Si es formato ISO, usamos parseDateTime
+      const date = parseDateTime(dateTimeString);
+      return date.toLocaleTimeString("es-PE", { 
+        hour: '2-digit', 
+        minute: '2-digit',
+        hour12: true
+      });
+    } catch (error) {
+      console.error('Error formatting time for display:', error);
       return '00:00';
     }
   };
@@ -334,7 +359,7 @@ const Contingencia = () => {
 
       toast({
         title: "Cita registrada exitosamente",
-        description: `Cita programada para ${newAppointment.fullName} el ${fechaHora.toLocaleDateString("es-PE")} a las ${fechaHora.toLocaleTimeString("es-PE", { hour: '2-digit', minute: '2-digit' })}`,
+        description: `Cita programada para ${newAppointment.fullName} el ${fechaHora.toLocaleDateString("es-PE")} a las ${formatTimeForDisplay(fechaHora.toISOString())}`,
       });
 
       setIsDialogOpen(false);
@@ -685,7 +710,7 @@ const Contingencia = () => {
                           </div>
                           <div className="flex items-center justify-between">
                             <div className="text-xs text-muted-foreground">
-                              {new Date(appointment.fecha_hora).toLocaleTimeString("es-PE", { hour: '2-digit', minute: '2-digit' })}
+                              {formatTimeForDisplay(appointment.fecha_hora)}
                             </div>
                             {(user?.area === 'ADMIN' || user?.area === 'CLINICO') && (
                               <Button
