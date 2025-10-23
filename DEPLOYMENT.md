@@ -53,6 +53,12 @@ Esta guía te ayudará a desplegar tu aplicación de forma gratuita para present
 - En el dashboard de Railway, haz clic en "New"
 - Selecciona "Database" → "MySQL"
 - Railway creará automáticamente la base de datos
+- **IMPORTANTE**: Railway agregará automáticamente las variables de entorno:
+  - `DB_HOST`
+  - `DB_USER` 
+  - `DB_PASSWORD`
+  - `DB_NAME`
+  - `DB_PORT`
 
 ### 1.5 Configurar Variables de Entorno
 En el servicio de tu backend, ve a "Variables" y agrega:
@@ -239,11 +245,27 @@ Visita: `https://tu-app.vercel.app`
 2. Revisa los logs de build en Vercel
 3. Asegúrate de usar `npm ci` como install command
 
-### ❌ Error: "Unauthorized" al hacer login
-**Causa**: Base de datos no inicializada
+### ❌ Error: "Error al conectar a MySQL" en Railway
+**Causa**: Variables de entorno de MySQL no configuradas o servicio MySQL no agregado
 **Solución**:
-1. Ejecuta `npm run db:init` en Railway
-2. Verifica que el usuario admin se haya creado
+1. **Verifica que MySQL esté agregado**:
+   - Ve al dashboard de Railway
+   - Debe haber un servicio "MySQL" además del backend
+   - Si no existe, agrégalo: "New" → "Database" → "MySQL"
+
+2. **Verifica las variables de entorno**:
+   - Ve a tu servicio backend → "Variables"
+   - Debe haber variables como `DB_HOST`, `DB_USER`, `DB_PASSWORD`
+   - Si no existen, Railway las agregará automáticamente cuando agregues MySQL
+
+3. **Reinicia el servicio**:
+   - Haz clic en "Redeploy" en tu servicio backend
+   - Esto aplicará las nuevas variables de entorno
+
+4. **Verifica los logs**:
+   - Ve a "Deployments" → "View Logs"
+   - Busca mensajes como "Variables de entorno de MySQL no configuradas"
+   - El script ahora muestra información de debug detallada
 
 ---
 

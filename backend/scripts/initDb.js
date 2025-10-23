@@ -15,12 +15,25 @@ async function initDatabase() {
 
   try {
     console.log('🔄 Conectando a MySQL...');
+    console.log(`📍 Host: ${process.env.DB_HOST || 'localhost'}`);
+    console.log(`👤 User: ${process.env.DB_USER || 'root'}`);
+    console.log(`🔐 Password: ${process.env.DB_PASSWORD ? '***configurado***' : 'no configurado'}`);
+    console.log(`🗄️ Database: ${process.env.DB_NAME || 'control_flow_guard'}`);
+    
+    // Verificar que las variables de entorno estén configuradas
+    if (!process.env.DB_HOST || !process.env.DB_USER || !process.env.DB_PASSWORD) {
+      console.log('⚠️ Variables de entorno de MySQL no configuradas completamente');
+      console.log('💡 En Railway, estas variables se configuran automáticamente');
+      console.log('💡 Verifica que MySQL esté agregado como servicio en Railway');
+      return;
+    }
     
     // Conectar sin especificar base de datos
     connection = await mysql.createConnection({
-      host: process.env.DB_HOST || 'localhost',
-      user: process.env.DB_USER || 'root',
-      password: process.env.DB_PASSWORD || '',
+      host: process.env.DB_HOST,
+      user: process.env.DB_USER,
+      password: process.env.DB_PASSWORD,
+      port: process.env.DB_PORT || 3306,
       multipleStatements: true
     });
 
@@ -79,6 +92,28 @@ async function initDatabase() {
 
   } catch (error) {
     console.error('❌ Error al inicializar base de datos:', error.message);
+    
+    if (error.code === 'ECONNREFUSED') {
+      console.log('💡 Error de conexión: El servidor MySQL no está disponible');
+      console.log('💡 En Railway: Verifica que el servicio MySQL esté corriendo');
+      console.log('💡 En local: Verifica que Laragon esté iniciado');
+    } else if (error.code === 'ER_ACCESS_DENIED_ERROR') {
+      console.log('💡 Error de autenticación: Credenciales incorrectas');
+      console.log('💡 Verifica las variables DB_USER y DB_PASSWORD');
+    } else if (error.code === 'ENOTFOUND') {
+      console.log('💡 Error de DNS: No se puede resolver el host');
+      console.log('💡 Verifica la variable DB_HOST');
+    } else {
+      console.log('💡 Error desconocido:', error.code);
+    }
+    
+    console.log('\n🔧 Variables de entorno actuales:');
+    console.log(`   DB_HOST: ${process.env.DB_HOST || 'no configurado'}`);
+    console.log(`   DB_USER: ${process.env.DB_USER || 'no configurado'}`);
+    console.log(`   DB_PASSWORD: ${process.env.DB_PASSWORD ? 'configurado' : 'no configurado'}`);
+    console.log(`   DB_NAME: ${process.env.DB_NAME || 'no configurado'}`);
+    console.log(`   DB_PORT: ${process.env.DB_PORT || 'no configurado'}`);
+    
     process.exit(1);
   } finally {
     if (connection) {
