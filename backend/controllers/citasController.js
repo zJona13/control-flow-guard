@@ -12,7 +12,7 @@ export const getCitas = async (req, res) => {
     }
 
     const [citas] = await pool.query(
-      'SELECT * FROM citas_contingencia ORDER BY fecha_hora DESC'
+      'SELECT * FROM citas_contingencia ORDER BY fecha DESC, hora DESC'
     );
 
     res.json(citas);

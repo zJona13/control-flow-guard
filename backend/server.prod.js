@@ -10,6 +10,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import mysql from 'mysql2/promise';
 import bcrypt from 'bcryptjs';
+import migrateDatabase from './scripts/migrate.js';
 
 dotenv.config();
 
@@ -360,6 +361,16 @@ async function initializeDatabase() {
       console.log('   Email: admin@essalud.gob.pe');
       console.log('   Password: admin123');
       console.log('\n✅ Base de datos inicializada correctamente\n');
+
+      // Ejecutar migración de citas_contingencia
+      console.log('🔄 Ejecutando migración de citas_contingencia...');
+      try {
+        await migrateDatabase();
+        console.log('✅ Migración completada exitosamente');
+      } catch (migrationError) {
+        console.error('❌ Error en la migración:', migrationError.message);
+        // No detener el servidor por errores de migración
+      }
 
     } catch (error) {
       console.error('❌ Error al inicializar base de datos:', error.message);

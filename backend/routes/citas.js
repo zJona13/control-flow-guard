@@ -17,7 +17,8 @@ const createCitaValidation = [
   body('nombre_completo').isLength({ min: 3, max: 200 }).withMessage('Nombre completo debe tener entre 3 y 200 caracteres'),
   body('servicio').notEmpty().withMessage('Servicio es requerido'),
   body('medico_asignado').notEmpty().withMessage('Médico asignado es requerido'),
-  body('fecha_hora').isISO8601().withMessage('Fecha y hora inválida')
+  body('fecha').matches(/^\d{4}-\d{2}-\d{2}$/).withMessage('Formato de fecha inválido. Use YYYY-MM-DD'),
+  body('hora').matches(/^\d{2}:\d{2}$/).withMessage('Formato de hora inválido. Use HH:MM')
 ];
 
 // Todas las rutas requieren autenticación

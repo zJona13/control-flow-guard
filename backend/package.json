@@ -7,7 +7,9 @@
   "scripts": {
     "dev": "node --watch server.js",
     "start": "node server.prod.js",
-    "db:init": "node scripts/initDb.js"
+    "db:init": "node scripts/initDb.js",
+    "db:migrate": "node run-migration.js",
+    "db:test": "node test-db.js"
   },
   "keywords": ["api", "express", "mysql", "jwt"],
   "author": "",
