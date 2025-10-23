@@ -102,7 +102,40 @@ async function initializeDatabase() {
       // Leer el archivo SQL
       const __filename = fileURLToPath(import.meta.url);
       const __dirname = path.dirname(__filename);
-      const sqlPath = path.join(__dirname, '../sql/mysql_schema.sql');
+      const sqlPath = path.join(__dirname, '../../sql/mysql_schema.sql');
+      
+      console.log(`🔍 Buscando archivo SQL en: ${sqlPath}`);
+      
+      // Verificar que el archivo existe
+      if (!fs.existsSync(sqlPath)) {
+        console.log('❌ Archivo SQL no encontrado');
+        console.log('💡 Verificando rutas alternativas...');
+        
+        // Intentar rutas alternativas
+        const alternativePaths = [
+          path.join(__dirname, '../sql/mysql_schema.sql'),
+          path.join(__dirname, './sql/mysql_schema.sql'),
+          path.join(process.cwd(), 'sql/mysql_schema.sql'),
+          path.join(process.cwd(), '../sql/mysql_schema.sql')
+        ];
+        
+        let foundPath = null;
+        for (const altPath of alternativePaths) {
+          console.log(`🔍 Probando: ${altPath}`);
+          if (fs.existsSync(altPath)) {
+            foundPath = altPath;
+            console.log(`✅ Archivo encontrado en: ${altPath}`);
+            break;
+          }
+        }
+        
+        if (!foundPath) {
+          throw new Error('No se pudo encontrar el archivo mysql_schema.sql');
+        }
+        
+        sqlPath = foundPath;
+      }
+      
       let sql = fs.readFileSync(sqlPath, 'utf8');
 
       console.log('🔄 Ejecutando script SQL...');
