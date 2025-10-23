@@ -289,8 +289,8 @@ const Contingencia = () => {
 
       setCreating(true);
 
-      // Crear fecha y hora combinada
-      const fechaHora = new Date(`${newAppointment.date}T${newAppointment.time}`);
+      // Crear fecha y hora combinada sin conversión de zona horaria
+      const fechaHora = new Date(`${newAppointment.date}T${newAppointment.time}:00`);
 
       await citasAPI.create({
         dni: newAppointment.dni,
@@ -772,14 +772,14 @@ const Contingencia = () => {
                   <Label>Fecha</Label>
                   <Input
                     type="date"
-                    value={new Date(editingAppointment.fecha_hora).toISOString().split('T')[0]}
+                    value={new Date(editingAppointment.fecha_hora + 'Z').toISOString().split('T')[0]}
                     onChange={(e) => {
-                      const newDate = new Date(editingAppointment.fecha_hora);
+                      const currentDate = new Date(editingAppointment.fecha_hora + 'Z');
                       const [year, month, day] = e.target.value.split('-');
-                      newDate.setFullYear(parseInt(year), parseInt(month) - 1, parseInt(day));
+                      currentDate.setFullYear(parseInt(year), parseInt(month) - 1, parseInt(day));
                       setEditingAppointment({
                         ...editingAppointment,
-                        fecha_hora: newDate.toISOString()
+                        fecha_hora: currentDate.toISOString()
                       });
                     }}
                     disabled={editing}
@@ -790,14 +790,14 @@ const Contingencia = () => {
                   <Label>Hora</Label>
                   <Input
                     type="time"
-                    value={new Date(editingAppointment.fecha_hora).toTimeString().slice(0, 5)}
+                    value={new Date(editingAppointment.fecha_hora + 'Z').toTimeString().slice(0, 5)}
                     onChange={(e) => {
-                      const newDate = new Date(editingAppointment.fecha_hora);
+                      const currentDate = new Date(editingAppointment.fecha_hora + 'Z');
                       const [hours, minutes] = e.target.value.split(':');
-                      newDate.setHours(parseInt(hours), parseInt(minutes));
+                      currentDate.setHours(parseInt(hours), parseInt(minutes));
                       setEditingAppointment({
                         ...editingAppointment,
-                        fecha_hora: newDate.toISOString()
+                        fecha_hora: currentDate.toISOString()
                       });
                     }}
                     disabled={editing}
