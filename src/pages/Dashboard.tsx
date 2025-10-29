@@ -334,7 +334,7 @@ const Dashboard = () => {
       </div>
 
 
-      <div className="grid gap-6 md:grid-cols-2">
+      <div className={`grid gap-6 ${user?.area === 'ADMIN' ? 'md:grid-cols-3' : 'md:grid-cols-2'}`}>
         {/* Sección específica para Personal Clínico */}
         {user?.area === 'CLINICO' ? (
           <>
@@ -524,6 +524,55 @@ const Dashboard = () => {
                 </div>
               </CardContent>
             </Card>
+
+            {/* Sección de Citas de Contingencia para ADMIN */}
+            {user?.area === 'ADMIN' && (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Calendar className="h-5 w-5" />
+                    Citas de Contingencia
+                  </CardTitle>
+                  <CardDescription>Estadísticas de citas DSS04</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-4">
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="text-center p-4 rounded-lg bg-primary/10">
+                        <div className="text-2xl font-bold text-primary">{appointmentStats?.total || 0}</div>
+                        <div className="text-sm text-muted-foreground">Total Citas</div>
+                      </div>
+                      <div className="text-center p-4 rounded-lg bg-warning/10">
+                        <div className="text-2xl font-bold text-warning">{appointmentStats?.programadas || 0}</div>
+                        <div className="text-sm text-muted-foreground">Programadas</div>
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="text-center p-4 rounded-lg bg-success/10">
+                        <div className="text-2xl font-bold text-success">{appointmentStats?.atendidas || 0}</div>
+                        <div className="text-sm text-muted-foreground">Atendidas</div>
+                      </div>
+                      <div className="text-center p-4 rounded-lg bg-destructive/10">
+                        <div className="text-2xl font-bold text-destructive">{appointmentStats?.canceladas || 0}</div>
+                        <div className="text-sm text-muted-foreground">Canceladas</div>
+                      </div>
+                    </div>
+                    <div className="text-center p-4 rounded-lg bg-accent/10">
+                      <div className="text-2xl font-bold text-foreground">{appointmentStats?.hoy || 0}</div>
+                      <div className="text-sm text-muted-foreground">Citas de Hoy</div>
+                    </div>
+                    <div className="pt-2 border-t">
+                      <Link to="/contingencia">
+                        <Button className="w-full" variant="outline">
+                          <Calendar className="h-4 w-4 mr-2" />
+                          Ver Calendario de Citas
+                        </Button>
+                      </Link>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
           </>
         )}
       </div>

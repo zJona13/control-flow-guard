@@ -351,7 +351,7 @@ async function initializeDatabase() {
       
       await connection.query(
         `INSERT INTO usuarios (id, email, password_hash, nombres, apellidos, area) 
-         VALUES (UUID(), 'admin@essalud.gob.pe', ?, 'Admin', 'Sistema', 'ADMIN')
+         VALUES (UUID(), 'jching@essalud.gob.pe', ?, 'Jonatan', 'Ching', 'ADMIN')
          ON DUPLICATE KEY UPDATE email=email`,
         [passwordHash]
       );
